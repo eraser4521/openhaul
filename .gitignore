@@ -55,3 +55,6 @@ yarn-error.log*
 
 # ---- legacy Flutter scaffold (superseded; kept locally, not published) ----
 autoloadmanagment_app/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
