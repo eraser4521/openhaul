@@ -1,0 +1,49 @@
+{
+  "name": "OpenHaul — Auto Transport Load Management",
+  "short_name": "OpenHaul",
+  "description": "Free, self-hostable load management for car haulers. Scan VINs, sign BOLs, prove vehicle condition with photos, and invoice — online or off.",
+  "id": "/",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#16171c",
+  "theme_color": "#16171c",
+  "categories": ["business", "productivity", "utilities"],
+  "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan a VIN",
+      "short_name": "Scan VIN",
+      "description": "Open the camera and scan a vehicle identification number",
+      "url": "/scan",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Today's loads",
+      "short_name": "Loads",
+      "description": "Loads assigned to you today",
+      "url": "/loads?filter=today",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

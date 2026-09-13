@@ -1,0 +1,57 @@
+# ---- dependencies ----
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+
+# ---- next.js ----
+.next/
+out/
+build/
+dist/
+next-env.d.ts
+.turbo/
+
+# ---- runtime data (never commit customer data) ----
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+/public/uploads/
+
+# ---- env & secrets ----
+.env
+.env.local
+.env.*.local
+.env.production
+*.pem
+*.key
+!public/**/*.key
+
+# ---- testing ----
+coverage/
+.vitest/
+
+# ---- os / editor ----
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ---- logs ----
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# ---- deployment ----
+.vercel
+
+# ---- legacy Flutter scaffold (superseded; kept locally, not published) ----
+autoloadmanagment_app/

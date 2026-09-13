@@ -1,0 +1,90 @@
+/** Formatting helpers. Money is stored as integer cents throughout the app. */
+
+const USD = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+});
+
+const USD_COMPACT = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+});
+
+/** Renders integer cents as currency. */
+export function money(cents: number | null | undefined, compact = false): string {
+  if (cents === null || cents === undefined) return '—';
+  return compact ? USD_COMPACT.format(cents / 100) : USD.format(cents / 100);
+}
+
+/** Rate per mile, derived from integer cents and whole miles. */
+export function ratePerMile(cents: number | null, miles: number | null): string {
+  if (!cents || !miles) return '—';
+  return `$${(cents / 100 / miles).toFixed(2)}/mi`;
+}
+
+const NUM = new Intl.NumberFormat('en-US');
+
+export function num(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  return NUM.format(value);
+}
+
+export function miles(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  return `${NUM.format(value)} mi`;
+}
+
+/** Compact relative time, e.g. "3h ago", "in 2d". */
+export function relativeTime(date: Date | string | number): string {
+  const then = new Date(date).getTime();
+  const deltaSeconds = Math.round((then - Date.now()) / 1000);
+
+  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+    ['year', 31_536_000],
+    ['month', 2_592_000],
+    ['week', 604_800],
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ];
+
+  const rtf = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto', style: 'narrow' });
+  for (const [unit, seconds] of units) {
+    if (Math.abs(deltaSeconds) >= seconds) {
+      return rtf.format(Math.round(deltaSeconds / seconds), unit);
+    }
+  }
+  return rtf.format(deltaSeconds, 'second');
+}
+
+/** Formats a US phone number, leaving anything unexpected untouched. */
+export function phone(value: string | null | undefined): string {
+  if (!value) return '—';
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  return value;
+}
+
+/** Splits a VIN into readable groups without changing its value. */
+export function vinDisplay(vin: string): string {
+  if (vin.length !== 17) return vin;
+  return `${vin.slice(0, 3)} ${vin.slice(3, 8)} ${vin.slice(8, 9)} ${vin.slice(9, 11)} ${vin.slice(11)}`;
+}
+
+export function bytes(value: number): string {
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let n = value;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}

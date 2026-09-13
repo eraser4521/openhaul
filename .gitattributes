@@ -1,0 +1,12 @@
+# Normalize line endings so Windows and Linux contributors do not fight.
+* text=auto eol=lf
+
+# Binary assets.
+*.png binary
+*.ico binary
+*.wasm binary
+*.db binary
+
+# Generated; keep out of diffs and language stats.
+package-lock.json linguist-generated=true -diff
+drizzle/meta/*.json linguist-generated=true -diff

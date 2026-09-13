@@ -1,0 +1,429 @@
+@import 'tailwindcss';
+
+/* Class-based dark mode so next-themes can drive it explicitly, while still
+   honouring the OS preference for visitors who have never chosen. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   Design tokens
+   --------------------------------------------------------------------------
+   Defined in OKLCH so that lightness steps are perceptually even and the
+   amber brand colour keeps its chroma when it sits on dark surfaces.
+   ========================================================================== */
+
+:root {
+  /* Surfaces, light theme */
+  --surface-base: oklch(0.99 0.003 260);
+  --surface-raised: oklch(1 0 0);
+  --surface-sunken: oklch(0.965 0.005 260);
+  --surface-overlay: oklch(1 0 0 / 0.86);
+  --surface-glass: oklch(1 0 0 / 0.64);
+
+  /* Text */
+  --text-primary: oklch(0.19 0.015 265);
+  --text-secondary: oklch(0.46 0.013 265);
+  --text-muted: oklch(0.6 0.011 265);
+  --text-inverted: oklch(0.98 0.002 260);
+
+  /* Lines */
+  --line-subtle: oklch(0.91 0.006 265);
+  --line-strong: oklch(0.84 0.008 265);
+
+  /* Brand: signal amber. Reads as highway/haulage without the cliché. */
+  --brand: oklch(0.74 0.163 62);
+  --brand-hover: oklch(0.69 0.168 58);
+  --brand-contrast: oklch(0.21 0.04 55);
+  --brand-soft: oklch(0.96 0.035 72);
+
+  /* Secondary: cool teal, used for data and telemetry. */
+  --accent: oklch(0.68 0.115 205);
+  --accent-soft: oklch(0.95 0.03 205);
+
+  /* Status */
+  --ok: oklch(0.63 0.15 152);
+  --ok-soft: oklch(0.95 0.045 152);
+  --warn: oklch(0.76 0.15 82);
+  --warn-soft: oklch(0.96 0.05 82);
+  --danger: oklch(0.58 0.21 25);
+  --danger-soft: oklch(0.95 0.04 25);
+  --info: oklch(0.6 0.16 258);
+  --info-soft: oklch(0.95 0.04 258);
+
+  /* Focus ring, deliberately high contrast for gloved hands in daylight. */
+  --ring: oklch(0.74 0.163 62);
+
+  --radius: 0.875rem;
+
+  /* Elevation. Tighter and cooler than the Tailwind defaults. */
+  --shadow-xs: 0 1px 2px oklch(0.2 0.02 265 / 0.06);
+  --shadow-sm: 0 1px 3px oklch(0.2 0.02 265 / 0.08), 0 1px 2px oklch(0.2 0.02 265 / 0.04);
+  --shadow-md: 0 4px 12px oklch(0.2 0.02 265 / 0.08), 0 2px 4px oklch(0.2 0.02 265 / 0.04);
+  --shadow-lg: 0 12px 32px oklch(0.2 0.02 265 / 0.12), 0 4px 8px oklch(0.2 0.02 265 / 0.05);
+  --shadow-xl: 0 24px 64px oklch(0.2 0.02 265 / 0.16), 0 8px 16px oklch(0.2 0.02 265 / 0.06);
+  --shadow-glow: 0 0 0 1px oklch(0.74 0.163 62 / 0.2), 0 8px 32px oklch(0.74 0.163 62 / 0.18);
+}
+
+.dark {
+  --surface-base: oklch(0.155 0.012 265);
+  --surface-raised: oklch(0.196 0.014 265);
+  --surface-sunken: oklch(0.128 0.012 265);
+  --surface-overlay: oklch(0.196 0.014 265 / 0.88);
+  --surface-glass: oklch(0.24 0.016 265 / 0.56);
+
+  --text-primary: oklch(0.97 0.003 260);
+  --text-secondary: oklch(0.75 0.012 265);
+  --text-muted: oklch(0.6 0.014 265);
+  --text-inverted: oklch(0.17 0.015 265);
+
+  --line-subtle: oklch(1 0 0 / 0.09);
+  --line-strong: oklch(1 0 0 / 0.16);
+
+  --brand: oklch(0.79 0.158 68);
+  --brand-hover: oklch(0.84 0.148 72);
+  --brand-contrast: oklch(0.18 0.035 55);
+  --brand-soft: oklch(0.33 0.075 62);
+
+  --accent: oklch(0.76 0.12 200);
+  --accent-soft: oklch(0.3 0.06 200);
+
+  --ok: oklch(0.74 0.15 155);
+  --ok-soft: oklch(0.29 0.06 155);
+  --warn: oklch(0.82 0.15 85);
+  --warn-soft: oklch(0.32 0.07 85);
+  --danger: oklch(0.69 0.19 25);
+  --danger-soft: oklch(0.3 0.08 25);
+  --info: oklch(0.72 0.14 258);
+  --info-soft: oklch(0.3 0.07 258);
+
+  --ring: oklch(0.79 0.158 68);
+
+  --shadow-xs: 0 1px 2px oklch(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 3px oklch(0 0 0 / 0.5), 0 1px 2px oklch(0 0 0 / 0.3);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.5), 0 2px 4px oklch(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.6), 0 4px 8px oklch(0 0 0 / 0.4);
+  --shadow-xl: 0 24px 64px oklch(0 0 0 / 0.7), 0 8px 16px oklch(0 0 0 / 0.45);
+  --shadow-glow: 0 0 0 1px oklch(0.79 0.158 68 / 0.28), 0 8px 40px oklch(0.79 0.158 68 / 0.24);
+}
+
+/* ==========================================================================
+   Tailwind theme bridge
+   ========================================================================== */
+
+@theme inline {
+  --color-base: var(--surface-base);
+  --color-raised: var(--surface-raised);
+  --color-sunken: var(--surface-sunken);
+  --color-overlay: var(--surface-overlay);
+  --color-glass: var(--surface-glass);
+
+  --color-ink: var(--text-primary);
+  --color-ink-secondary: var(--text-secondary);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-inverted: var(--text-inverted);
+
+  --color-line: var(--line-subtle);
+  --color-line-strong: var(--line-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-brand-soft: var(--brand-soft);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.375rem);
+  --radius-2xl: calc(var(--radius) + 0.75rem);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-glow: var(--shadow-glow);
+
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-scale-in: scale-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-slide-in: slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-shimmer: shimmer 2.2s linear infinite;
+  --animate-drift: drift 22s ease-in-out infinite;
+  --animate-drift-slow: drift 34s ease-in-out infinite reverse;
+  --animate-pulse-ring: pulse-ring 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-sweep: sweep 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-dash: dash 2.5s linear infinite;
+}
+
+/* ==========================================================================
+   Keyframes
+   ========================================================================== */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translate3d(0, 1.5rem, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translate3d(-0.75rem, 0, 0); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(3%, -4%, 0) scale(1.06); }
+  66% { transform: translate3d(-3%, 3%, 0) scale(0.96); }
+}
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--ok) 55%, transparent); }
+  70% { box-shadow: 0 0 0 0.6rem color-mix(in oklch, var(--ok) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--ok) 0%, transparent); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-0.6rem); }
+}
+@keyframes marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes sweep {
+  0% { transform: translateY(-100%); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+@keyframes dash {
+  to { stroke-dashoffset: -1000; }
+}
+
+/* ==========================================================================
+   Base layer
+   ========================================================================== */
+
+@layer base {
+  * {
+    border-color: var(--line-subtle);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light;
+  }
+  .dark html,
+  html:has(body.dark),
+  .dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--surface-base);
+    color: var(--text-primary);
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Headings get slightly negative tracking, which is what makes a UI read as
+     "designed" rather than default. */
+  h1, h2, h3, h4 {
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+  }
+  h1 { letter-spacing: -0.032em; }
+
+  p, li {
+    text-wrap: pretty;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 0.375rem;
+  }
+
+  /* Tabular figures everywhere numbers are compared in a column. */
+  .tnum, table, [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--brand) 28%, transparent);
+    color: var(--text-primary);
+  }
+
+  ::-webkit-scrollbar { width: 11px; height: 11px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--text-muted) 32%, transparent);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--text-muted) 55%, transparent);
+    background-clip: content-box;
+  }
+}
+
+/* ==========================================================================
+   Component utilities
+   ========================================================================== */
+
+@layer utilities {
+  /* Frosted panel used for nav, cards and overlays. */
+  .glass {
+    background-color: var(--surface-glass);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid var(--line-subtle);
+  }
+
+  /* Gradient text for a single emphasised phrase per page. */
+  .text-gradient {
+    background-image: linear-gradient(
+      100deg,
+      var(--text-primary) 0%,
+      var(--text-primary) 30%,
+      var(--brand) 62%,
+      color-mix(in oklch, var(--brand) 70%, var(--accent)) 100%
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+
+  .text-brand-gradient {
+    background-image: linear-gradient(100deg, var(--brand) 0%, color-mix(in oklch, var(--brand) 55%, var(--accent)) 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+
+  /* Faint blueprint grid, used behind hero and empty states. */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, color-mix(in oklch, var(--text-muted) 12%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in oklch, var(--text-muted) 12%, transparent) 1px, transparent 1px);
+    background-size: 3.5rem 3.5rem;
+  }
+
+  .bg-dots {
+    background-image: radial-gradient(
+      color-mix(in oklch, var(--text-muted) 22%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 1.5rem 1.5rem;
+  }
+
+  /* Fades a decorative background out toward the edges so it never fights
+     with content. */
+  .mask-fade {
+    mask-image: radial-gradient(ellipse 75% 60% at 50% 40%, black 30%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse 75% 60% at 50% 40%, black 30%, transparent 78%);
+  }
+
+  .mask-fade-b {
+    mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 55%, transparent 100%);
+  }
+
+  .shimmer {
+    background-image: linear-gradient(
+      100deg,
+      transparent 20%,
+      color-mix(in oklch, var(--text-primary) 8%, transparent) 40%,
+      color-mix(in oklch, var(--text-primary) 8%, transparent) 60%,
+      transparent 80%
+    );
+    background-size: 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+
+  /* Hairline gradient border via a masked pseudo-element. Works on any radius
+     and, unlike border-image, survives backdrop-filter. */
+  .ring-gradient {
+    position: relative;
+  }
+  .ring-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      140deg,
+      color-mix(in oklch, var(--brand) 55%, transparent),
+      transparent 42%,
+      transparent 62%,
+      color-mix(in oklch, var(--accent) 42%, transparent)
+    );
+    mask: linear-gradient(black, black) content-box, linear-gradient(black, black);
+    -webkit-mask: linear-gradient(black, black) content-box, linear-gradient(black, black);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    pointer-events: none;
+  }
+
+  .animate-on-scroll {
+    opacity: 0;
+  }
+  .animate-on-scroll[data-visible='true'] {
+    animation: var(--animate-fade-up);
+  }
+}
+
+/* ==========================================================================
+   Accessibility
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-on-scroll {
+    opacity: 1 !important;
+  }
+}
+
+/* Print: the BOL and condition report must come out clean on paper, because
+   some receiving yards still demand a hard copy. */
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; color: black; }
+  .glass { background: white; backdrop-filter: none; border-color: #ddd; }
+}
