@@ -56,6 +56,11 @@ the encryption worth having.
 | `OPENHAUL_KEYS` | **yes** | `v2:<base64>,v1:<base64>`, newest first |
 | `OPENHAUL_INDEX_KEY_VERSION` | yes | Pinned separately; rotating it requires re-indexing |
 | `PASSWORD_PEPPER` | recommended | Held outside the database |
+| `SMTP_HOST`, `SMTP_FROM` | to send documents | Without both, sending is off and the app says so |
+| `SMTP_PORT` | no | Defaults to 587. TLS is implied on 465 |
+| `SMTP_USER`, `SMTP_PASSWORD` | if your server needs them | Omit for an unauthenticated relay |
+| `SMTP_SECURE` | rarely | Derived from the port; set only to override |
+| `SMTP_REPLY_TO` | no | Where replies should land, if not the from address |
 | `FMCSA_WEB_KEY` | for carrier lookups | Free key from mobile.fmcsa.dot.gov; without it the lookup screen says so and stays off |
 | `NEXT_PUBLIC_APP_URL` | yes | Public origin, used in metadata |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | multi-instance only | See below |

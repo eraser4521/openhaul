@@ -246,6 +246,7 @@ export const AUDIT = {
 
   documentFinalized: 'document.finalized',
   documentIntegrityFailed: 'document.integrity.failed',
+  documentSent: 'document.sent',
   signatureCaptured: 'signature.captured',
 
   invoiceCreated: 'invoice.created',

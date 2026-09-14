@@ -105,6 +105,7 @@ template does not reproduce the record that was actually agreed.
 | **Invoicing** | Built from the load, with broker rate and margin stored as structured fields and a one-click [49 CFR 371.3][371] transaction record |
 | **Claims** | Statutory deadlines as real dates — [30-day acknowledgement][370-5], [120-day disposition and 60-day status letters][370] — because most small carriers blow the first one |
 | **Settlements** | Per-load pay with the arithmetic shown, itemised chargebacks, and escrow accounted for across periods — the things [49 CFR 376.12][376] requires of a lease |
+| **Sending** | Over your own SMTP, with the attachment hash-checked first and every attempt recorded — and no claim that anything was delivered |
 | **Credits** | A reduction is a second document referencing the invoice, never an edit to the one already sent |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificate tracking with expiry alerts. Cargo cover for general freight is **not** filed with FMCSA, so an uploaded certificate is the only way to verify it |
@@ -282,7 +283,8 @@ hashing, and sealing. Bill of lading and delivery receipt generation. Invoicing,
 invoice off a delivered load through to recording payment. Cargo claims, from intake through to a
 written disposition. FMCSA carrier and broker lookups. Driver settlements, including the
 truth-in-leasing disclosures a leased owner-operator is owed. Credit notes against an issued
-invoice. The offline queue behind it. The marketing site.
+invoice. Sending any of it by email, over your own mail server. The offline queue behind it. The
+marketing site.
 
 The inspection path is verified end to end against a running instance — a 2.2 MB photo compresses
 to roughly 300 KB on the device, uploads, and is stored as an immutable original plus a stripped
@@ -347,8 +349,21 @@ capitals, that it is not a bill: accounts payable departments process by documen
 credit that reads like an invoice gets paid instead of applied. When a cargo claim is settled by
 coming off the freight bill rather than being paid out, the claim number goes on the credit note.
 
-**Not built yet.** Sending any of the documents this produces. OpenHaul writes and freezes them;
-attaching and sending is still done by hand. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Sending goes over SMTP through whatever mailbox you already have, because a vendor API would be
+less code here and a subscription for you. The covering email is drafted from the record — the
+customer for an invoice, the claimant for a claim letter, with the amount, the due date and the
+notice of assignment already in it — and every field is editable before it goes. The PDF is checked
+against the hash it was sealed under before it is attached, so a file that no longer matches is
+refused rather than mailed out of the building.
+
+What it will not tell you is that anything arrived. A mail server accepting a message is not
+delivery and is certainly not proof of reading, so the app says only that the message was handed
+over, records every attempt with the hash of what was attached, and suggests you keep your own
+proof of sending where a date decides something. Nothing tracks opens.
+
+**Not built yet.** Nothing on the original list. What is missing now is smaller and specific: a
+payment-out to close a refund, driver expense capture from the cab, and letterheaded document
+templates. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

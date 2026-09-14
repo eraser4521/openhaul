@@ -36,8 +36,9 @@ the obvious model.
 want it settled — but nothing records the refund actually going out. That needs a payment-out
 alongside the payments-in already modelled.
 
-**Sending the letters.** OpenHaul writes the Part 370 letters and freezes them; a carrier still
-attaches and sends them by hand. Delivery, and proof of delivery, is the gap.
+**Bounce handling.** Sending records that the mail server accepted a message. A bounce arriving an
+hour later goes nowhere, so a send that failed downstream still reads as accepted. Reading a
+mailbox back, or an SMTP callback, would close that.
 
 **Insurance certificates.** The lookup can say whether a filing exists; it cannot say anything
 about cargo cover for vehicles, which is never filed. An uploaded certificate with expiry tracking

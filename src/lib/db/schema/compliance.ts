@@ -276,6 +276,60 @@ export const insuranceCertificates = sqliteTable(
  * The QCMobile service has had extended outages, so results are cached and
  * signup or dispatch never hard-fails on its availability.
  */
+/**
+ * One attempt at sending a document to somebody.
+ *
+ * Separate from the document because the same bill of lading goes to a
+ * shipper, a consignee and a broker, on different days, with different
+ * outcomes — and because what is worth keeping is the attempt, not a flag
+ * saying "sent" that cannot say to whom or when.
+ *
+ * Failures are recorded as well as successes. "We tried on the ninth and the
+ * server rejected the address" is a fact somebody needs later; silently
+ * dropping it leaves a gap that reads like nobody bothered.
+ *
+ * `documentSha256` is copied here deliberately. It is the evidence that the
+ * bytes attached to that email are the bytes still on disk under that id.
+ */
+export const SEND_STATUSES = ['sent', 'failed'] as const;
+export type SendStatus = (typeof SEND_STATUSES)[number];
+
+export const documentSends = sqliteTable(
+  'document_sends',
+  {
+    id: pk(),
+    orgId: orgId(),
+    documentId: text('document_id').notNull(),
+
+    toAddresses: json<string[]>('to_addresses').notNull(),
+    ccAddresses: json<string[]>('cc_addresses'),
+    subject: text('subject').notNull(),
+    body: text('body').notNull(),
+
+    status: text('status', { enum: SEND_STATUSES }).notNull(),
+    /** What the receiving server called it. Null on failure. */
+    messageId: text('message_id'),
+    error: text('error'),
+
+    /** The document's hash at the moment it was attached. */
+    documentSha256: text('document_sha256').notNull(),
+
+    actorId: text('actor_id'),
+    attemptedAt: ts('attempted_at').notNull(),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('document_sends_org_id_uq').on(t.orgId, t.id),
+    index('document_sends_document_idx').on(t.documentId),
+    foreignKey({
+      columns: [t.orgId, t.documentId],
+      foreignColumns: [documents.orgId, documents.id],
+      name: 'document_sends_document_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
 export const carrierChecks = sqliteTable(
   'carrier_checks',
   {
@@ -359,3 +413,4 @@ export type AuditEntry = typeof auditLog.$inferSelect;
 export type Claim = typeof claims.$inferSelect;
 export type InsuranceCertificate = typeof insuranceCertificates.$inferSelect;
 export type CarrierCheck = typeof carrierChecks.$inferSelect;
+export type DocumentSend = typeof documentSends.$inferSelect;

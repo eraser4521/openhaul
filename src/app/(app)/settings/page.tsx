@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { relativeTime } from '@/lib/utils/format';
 import { CompanyForm } from '@/components/app/company-form';
+import { MailCheck } from '@/components/app/mail-check';
+import { mailConfigured } from '@/lib/email/transport';
 import { can } from '@/lib/auth/capabilities';
 import { getOrganization } from '@/lib/organization/profile';
 import { VerifyChainButton } from './verify-chain';
@@ -55,6 +57,8 @@ export default async function SettingsPage() {
             }}
           />
         )}
+
+        <MailCheck configured={mailConfigured()} />
 
         <Card>
           <div className="border-b border-line px-5 py-4">

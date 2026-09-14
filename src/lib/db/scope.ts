@@ -46,6 +46,7 @@ export const TENANT_TABLES = {
   claims: schema.claims,
   insuranceCertificates: schema.insuranceCertificates,
   carrierChecks: schema.carrierChecks,
+  documentSends: schema.documentSends,
   retentionPolicies: schema.retentionPolicies,
   legalHolds: schema.legalHolds,
   esignConsents: schema.esignConsents,

@@ -1,21 +1,36 @@
-import { FileText } from 'lucide-react';
+import { Download, FileText } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { EmptyState, PageBody, PageHeader } from '@/components/app/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { bytes, relativeTime } from '@/lib/utils/format';
+import { can } from '@/lib/auth/capabilities';
+import { SendDocument } from '@/components/app/send-document';
+import { sendsFor } from '@/lib/documents/send';
+import { mailConfigured } from '@/lib/email/transport';
 
 export const metadata = { title: 'Documents' };
 
 export default async function DocumentsPage() {
-  const { db } = await requireSessionOrRedirect();
+  const { session, db } = await requireSessionOrRedirect();
+
   const documents = await db.select('documents');
+  const configured = mailConfigured();
+  const canSend = can(session.role, 'load.read');
+
+  // Newest first: the thing somebody wants to send is almost always the thing
+  // that was just produced.
+  const sorted = documents
+    .slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  const sends = await Promise.all(sorted.map((document) => sendsFor(db, document.id)));
 
   return (
     <>
       <PageHeader
         title="Documents"
-        description="Bills of lading, delivery receipts and rate confirmations, stored as the exact bytes that were signed."
+        description="Every document this produces, stored as the exact bytes that were sealed — and sendable from here."
       />
       <PageBody>
         {documents.length === 0 ? (
@@ -25,29 +40,69 @@ export default async function DocumentsPage() {
             description="A bill of lading is frozen the moment it is signed and stored byte for byte, because regenerating one from a later template does not reproduce the record that was actually agreed."
           />
         ) : (
-          <ul className="space-y-2">
-            {documents.map((document) => (
+          <ul className="space-y-3">
+            {sorted.map((document, index) => (
               <li key={document.id}>
-                <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium text-ink">{document.title}</span>
-                      <Badge tone="neutral" size="sm" className="uppercase">
-                        {document.kind.replace(/_/g, ' ')}
-                      </Badge>
-                      {document.finalizedAt && (
-                        <Badge tone="ok" size="sm">
-                          Sealed
+                <Card className="p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-sm font-medium text-ink">
+                          {document.title}
+                        </span>
+                        <Badge tone="neutral" size="sm" className="uppercase">
+                          {document.kind.replace(/_/g, ' ')}
                         </Badge>
-                      )}
-                    </p>
-                    <p className="mt-1 font-mono text-[0.6875rem] text-ink-muted">
-                      sha256 {document.sha256.slice(0, 16)}…
-                    </p>
+                        {document.finalizedAt && (
+                          <Badge tone="ok" size="sm">
+                            Sealed
+                          </Badge>
+                        )}
+                      </p>
+                      <p className="mt-1 font-mono text-[0.6875rem] text-ink-muted">
+                        sha256 {document.sha256.slice(0, 16)}…
+                      </p>
+                      <p className="mt-0.5 text-xs text-ink-secondary">
+                        {bytes(document.byteSize)} · {relativeTime(document.createdAt)}
+                      </p>
+                    </div>
+
+                    <div className="flex shrink-0 gap-1.5">
+                      <a
+                        href={`/api/documents/${document.id}`}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="inline-flex h-8 items-center rounded-lg border border-line px-2.5 text-xs text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
+                      >
+                        View
+                      </a>
+                      <a
+                        href={`/api/documents/${document.id}?download=1`}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-2.5 text-xs text-ink-secondary transition-colors hover:border-line-strong hover:text-ink"
+                      >
+                        <Download className="size-3.5" aria-hidden />
+                        PDF
+                      </a>
+                    </div>
                   </div>
-                  <p className="text-xs text-ink-secondary">
-                    {bytes(document.byteSize)} · {relativeTime(document.createdAt)}
-                  </p>
+
+                  <div className="mt-3 border-t border-line pt-3">
+                    <SendDocument
+                      documentId={document.id}
+                      documentTitle={document.title}
+                      configured={configured}
+                      canSend={canSend}
+                      sends={(sends[index] ?? []).map((send) => ({
+                        id: send.id,
+                        to: send.toAddresses,
+                        cc: send.ccAddresses,
+                        subject: send.subject,
+                        status: send.status,
+                        error: send.error,
+                        attemptedAt: send.attemptedAt,
+                      }))}
+                    />
+                  </div>
                 </Card>
               </li>
             ))}
