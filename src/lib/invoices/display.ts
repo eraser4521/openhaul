@@ -1,4 +1,4 @@
-import type { InvoiceStatus } from '../db/schema';
+import type { CreditReason, InvoiceStatus } from '../db/schema';
 
 /** Presentation for invoice status, shared by the list and the detail screen. */
 
@@ -36,3 +36,19 @@ const PAYMENT_METHOD_LABEL: Record<string, string> = {
 export function paymentMethodLabel(method: string): string {
   return PAYMENT_METHOD_LABEL[method] ?? method.replace(/_/g, ' ');
 }
+
+/**
+ * Why an invoice was credited.
+ *
+ * Here rather than beside the credit lifecycle because that module is
+ * server-only — it holds a database handle — and the reason labels are needed
+ * by the form a person fills in.
+ */
+export const CREDIT_REASON_LABEL: Record<CreditReason, string> = {
+  rate_adjustment: 'Rate adjustment',
+  damage_offset: 'Damage offset against the freight bill',
+  service_failure: 'Service failure',
+  billing_error: 'Billing error',
+  goodwill: 'Goodwill',
+  other: 'Other',
+};

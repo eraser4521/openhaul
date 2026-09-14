@@ -21,6 +21,7 @@ import { applyMigrations } from './helpers/temp-db';
 let workspace: string;
 let scoped: Awaited<ReturnType<typeof import('@/lib/db/scope')['forOrg']>>;
 let lifecycle: typeof import('@/lib/invoices/lifecycle');
+let credits: typeof import('@/lib/invoices/credits');
 let dbModule: typeof import('@/lib/db/client');
 let schema: typeof import('@/lib/db/schema');
 
@@ -45,6 +46,7 @@ beforeAll(async () => {
 
   const { asOrgId, forOrg } = await import('@/lib/db/scope');
   lifecycle = await import('@/lib/invoices/lifecycle');
+  credits = await import('@/lib/invoices/credits');
 
   const [org] = await dbModule.db
     .insert(schema.organizations)
@@ -429,5 +431,191 @@ describe('the issued document', () => {
     const again = await lifecycle.issueInvoice(scoped, invoice!.id);
     expect(again.ok).toBe(false);
     expect(again.error).toContain('already been issued');
+  });
+});
+
+/* -------------------------------------------------------------------------
+ * Credit notes
+ * ---------------------------------------------------------------------- */
+
+describe('credit notes', () => {
+  let invoiceId: string;
+  let loadId: string;
+
+  beforeAll(async () => {
+    loadId = await deliveredLoad('OH-6001', { rateCents: 100_000 });
+    const created = await lifecycle.createInvoiceForLoad(scoped, loadId);
+    await lifecycle.issueInvoice(scoped, created.invoiceId!);
+    invoiceId = created.invoiceId!;
+  });
+
+  it('refuses to credit a draft, which can simply be corrected', async () => {
+    const draftLoad = await deliveredLoad('OH-6002');
+    const draft = await lifecycle.createInvoiceForLoad(scoped, draftLoad);
+
+    const gate = await credits.checkCreditable(scoped, draft.invoiceId!);
+    expect(gate.ok).toBe(false);
+    expect(gate.reason).toContain('not been issued');
+  });
+
+  it('credits an issued invoice without touching what it says', async () => {
+    /*
+     * The separation the whole design rests on. The customer holds a document
+     * stating $1,000.00, and that stays true — only what is owed moves.
+     */
+    const result = await credits.raiseCreditNote(scoped, {
+      invoiceId,
+      reason: 'rate_adjustment',
+      detail: 'Detention withdrawn after reviewing the gate log.',
+      amountCents: 25_000,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.number).toBe('CN-INV-OH-6001');
+    expect(result.balanceCents).toBe(75_000);
+
+    const invoice = await scoped.selectOne('invoices', eq(schema.invoices.id, invoiceId));
+    expect(invoice?.totalCents).toBe(100_000);
+    expect(invoice?.creditedCents).toBe(25_000);
+  });
+
+  it('refuses a credit larger than what is left of the invoice', async () => {
+    const result = await credits.raiseCreditNote(scoped, {
+      invoiceId,
+      reason: 'goodwill',
+      detail: 'Too much.',
+      amountCents: 90_000,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('left to');
+  });
+
+  it('refuses a credit with no explanation', async () => {
+    const result = await credits.raiseCreditNote(scoped, {
+      invoiceId,
+      reason: 'other',
+      detail: '   ',
+      amountCents: 1_000,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it('refuses a zero or negative credit', async () => {
+    expect(
+      (await credits.raiseCreditNote(scoped, {
+        invoiceId,
+        reason: 'other',
+        detail: 'Nothing.',
+        amountCents: 0,
+      })).ok,
+    ).toBe(false);
+  });
+
+  it('settles the invoice when credits and payments clear it', async () => {
+    await lifecycle.recordPayment(scoped, invoiceId, {
+      amountCents: 75_000,
+      method: 'ach',
+      reference: 'ACH-6001',
+      receivedAt: new Date(),
+      notes: null,
+    });
+
+    const invoice = await scoped.selectOne('invoices', eq(schema.invoices.id, invoiceId));
+    expect(invoice?.status).toBe('paid');
+  });
+
+  it('puts the money back on the balance when a credit is withdrawn', async () => {
+    const [note] = await scoped.select(
+      'creditNotes',
+      eq(schema.creditNotes.invoiceId, invoiceId),
+    );
+
+    const voided = await credits.voidCreditNote(scoped, note!.id, 'Raised against the wrong load.');
+    expect(voided.ok).toBe(true);
+
+    const invoice = await scoped.selectOne('invoices', eq(schema.invoices.id, invoiceId));
+    expect(invoice?.creditedCents).toBe(0);
+    // Paid 75,000 of 100,000, so it is owed again.
+    expect(invoice?.status).toBe('partially_paid');
+  });
+
+  it('refuses to withdraw a credit twice, or without a reason', async () => {
+    const [note] = await scoped.select(
+      'creditNotes',
+      eq(schema.creditNotes.invoiceId, invoiceId),
+    );
+
+    expect((await credits.voidCreditNote(scoped, note!.id, 'Again.')).ok).toBe(false);
+
+    const fresh = await credits.raiseCreditNote(scoped, {
+      invoiceId,
+      reason: 'billing_error',
+      detail: 'Corrected rate.',
+      amountCents: 5_000,
+    });
+    expect((await credits.voidCreditNote(scoped, fresh.creditNoteId!, '  ')).ok).toBe(false);
+  });
+
+  it('never reuses a credit note number after one was withdrawn', async () => {
+    const again = await credits.raiseCreditNote(scoped, {
+      invoiceId,
+      reason: 'goodwill',
+      detail: 'Second credit.',
+      amountCents: 1_000,
+    });
+    expect(again.number).toBe('CN-INV-OH-6001-3');
+  });
+
+  it('refuses to credit a voided invoice', async () => {
+    const otherLoad = await deliveredLoad('OH-6003');
+    const other = await lifecycle.createInvoiceForLoad(scoped, otherLoad);
+    await lifecycle.issueInvoice(scoped, other.invoiceId!);
+    await lifecycle.voidInvoice(scoped, other.invoiceId!, 'Wrong customer.');
+
+    const gate = await credits.checkCreditable(scoped, other.invoiceId!);
+    expect(gate.ok).toBe(false);
+    expect(gate.reason).toContain('voided');
+  });
+
+  it('will not attach a claim raised against a different load', async () => {
+    const { fileClaim } = await import('@/lib/claims/lifecycle');
+    const elsewhere = await deliveredLoad('OH-6004');
+
+    const claim = await fileClaim(scoped, {
+      loadId: elsewhere,
+      vehicleId: null,
+      claimantName: 'Somebody Else',
+      claimantEmail: null,
+      demandAmountCents: 1_000,
+      description: 'Damage on another load.',
+      filedAt: new Date(),
+    });
+
+    const result = await credits.raiseCreditNote(scoped, {
+      invoiceId,
+      reason: 'damage_offset',
+      detail: 'Offsetting the wrong claim.',
+      amountCents: 1_000,
+      claimId: claim.claimId,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain('different load');
+  });
+
+  it('freezes a credit note document whose bytes match its hash', async () => {
+    const { buildCreditDocument } = await import('@/lib/invoices/credit-document');
+    const [note] = await credits.creditsFor(scoped, invoiceId);
+
+    const document = await buildCreditDocument(scoped, note!.id);
+    expect(document.ok).toBe(true);
+
+    const row = await scoped.selectOne('documents', eq(schema.documents.id, document.documentId!));
+    expect(row?.kind).toBe('credit_note');
+
+    const { createHash } = await import('node:crypto');
+    const bytes = await readFile(path.join(workspace, 'uploads', row!.storageKey));
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(row!.sha256);
   });
 });

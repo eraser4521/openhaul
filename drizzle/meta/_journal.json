@@ -15,6 +15,13 @@
       "when": 1789356736800,
       "tag": "0001_fancy_whiplash",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789359821265,
+      "tag": "0002_fuzzy_ma_gnuci",
+      "breakpoints": true
     }
   ]
 }

@@ -48,9 +48,20 @@ export function totalCents(charges: Charges): number {
   return grossCents(charges) - charges.codCollectedCents - charges.depositCents;
 }
 
-/** Outstanding after payments recorded against the invoice. */
-export function balanceCents(total: number, paid: number): number {
-  return total - paid;
+/**
+ * Outstanding after payments received and credits allowed.
+ *
+ * Credits reduce what is owed without touching `total`. The customer is
+ * holding an invoice stating that figure and that figure is what was claimed
+ * from them; a credit note is a second document saying part of it is no longer
+ * due. Rewriting the invoice's total instead would leave two different numbers
+ * in circulation under one identity.
+ *
+ * Goes negative when credits and payments together exceed the charge, which is
+ * a refund owed to the customer rather than a figure to clamp away.
+ */
+export function balanceCents(total: number, paid: number, credited = 0): number {
+  return total - paid - credited;
 }
 
 /**
@@ -119,6 +130,7 @@ export interface StatusInput {
   status: InvoiceStatus;
   totalCents: number;
   paidCents: number;
+  creditedCents?: number;
   dueAt: Date | null;
 }
 
@@ -133,17 +145,20 @@ export interface StatusInput {
 export function effectiveStatus(invoice: StatusInput, now: Date): InvoiceStatus {
   if (invoice.status === 'void' || invoice.status === 'draft') return invoice.status;
 
-  if (balanceCents(invoice.totalCents, invoice.paidCents) <= 0) return 'paid';
+  const credited = invoice.creditedCents ?? 0;
+
+  // Nothing owed is nothing owed, whether it was paid or credited away.
+  if (balanceCents(invoice.totalCents, invoice.paidCents, credited) <= 0) return 'paid';
 
   if (invoice.dueAt && invoice.dueAt.getTime() < now.getTime()) return 'overdue';
 
   return invoice.paidCents > 0 ? 'partially_paid' : invoice.status;
 }
 
-/** The status to store after payments change. */
-export function statusAfterPayment(total: number, paid: number): InvoiceStatus {
-  if (paid <= 0) return 'sent';
-  return balanceCents(total, paid) <= 0 ? 'paid' : 'partially_paid';
+/** The status to store after payments or credits change. */
+export function statusAfterPayment(total: number, paid: number, credited = 0): InvoiceStatus {
+  if (balanceCents(total, paid, credited) <= 0) return 'paid';
+  return paid > 0 ? 'partially_paid' : 'sent';
 }
 
 /* -------------------------------------------------------------------------
@@ -183,6 +198,7 @@ export interface AgingRow {
   status: InvoiceStatus;
   totalCents: number;
   paidCents: number;
+  creditedCents?: number;
   dueAt: Date | null;
 }
 
@@ -203,7 +219,11 @@ export function ageReceivables(
     // A draft has not been sent to anybody and a void invoice is not owed.
     if (invoice.status === 'draft' || invoice.status === 'void') continue;
 
-    const outstanding = balanceCents(invoice.totalCents, invoice.paidCents);
+    const outstanding = balanceCents(
+      invoice.totalCents,
+      invoice.paidCents,
+      invoice.creditedCents ?? 0,
+    );
     if (outstanding <= 0) continue;
 
     totals[agingBucket(invoice.dueAt, now)] += outstanding;
@@ -215,7 +235,12 @@ export function ageReceivables(
 export function totalOutstanding(invoices: readonly AgingRow[]): number {
   return invoices
     .filter((invoice) => invoice.status !== 'draft' && invoice.status !== 'void')
-    .reduce((sum, invoice) => sum + Math.max(0, balanceCents(invoice.totalCents, invoice.paidCents)), 0);
+    .reduce(
+      (sum, invoice) =>
+        sum +
+        Math.max(0, balanceCents(invoice.totalCents, invoice.paidCents, invoice.creditedCents ?? 0)),
+      0,
+    );
 }
 
 /* -------------------------------------------------------------------------

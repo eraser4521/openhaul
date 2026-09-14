@@ -81,7 +81,11 @@ export default async function InvoicesPage() {
               <ul className="space-y-2">
                 {sorted.map((invoice) => {
                   const status = effectiveStatus(invoice, now);
-                  const balance = balanceCents(invoice.totalCents, invoice.paidCents);
+                  const balance = balanceCents(
+                    invoice.totalCents,
+                    invoice.paidCents,
+                    invoice.creditedCents,
+                  );
 
                   return (
                     <li key={invoice.id}>
@@ -123,7 +127,7 @@ export default async function InvoicesPage() {
                               <p className="mt-0.5 text-xs text-ink-muted tabular-nums">
                                 {balance > 0
                                   ? `${money(balance)} outstanding`
-                                  : `${money(-balance)} overpaid`}
+                                  : `${money(-balance)} to refund`}
                               </p>
                             )}
                           </div>

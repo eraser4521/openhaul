@@ -54,6 +54,11 @@ export const invoices = sqliteTable(
     taxCents: money('tax_cents').notNull().default(0),
     totalCents: money('total_cents').notNull().default(0),
     paidCents: money('paid_cents').notNull().default(0),
+    /**
+     * Credited by credit note, which reduces what is owed without altering
+     * what the invoice says. Derived from the notes, never incremented.
+     */
+    creditedCents: money('credited_cents').notNull().default(0),
     currency: currency(),
 
     terms: text('terms', { enum: PAYMENT_TERMS }),
@@ -124,6 +129,73 @@ export const payments = sqliteTable(
       foreignColumns: [invoices.orgId, invoices.id],
       name: 'payments_invoice_fk',
     }).onDelete('cascade'),
+  ],
+);
+
+/**
+ * A credit note against an issued invoice.
+ *
+ * Not an edit. Once an invoice has been sent, the customer holds a document
+ * stating a figure, and that figure is what was claimed from them — so a
+ * reduction is a second document that says so, referencing the first. Voiding
+ * is only available while nothing has been paid; after that a credit is the
+ * instrument, because voiding would erase money actually received.
+ *
+ * The balance owed becomes total less payments less credits. The invoice's own
+ * total never moves.
+ */
+export const CREDIT_REASONS = [
+  'rate_adjustment',
+  'damage_offset',
+  'service_failure',
+  'billing_error',
+  'goodwill',
+  'other',
+] as const;
+export type CreditReason = (typeof CREDIT_REASONS)[number];
+
+export const creditNotes = sqliteTable(
+  'credit_notes',
+  {
+    id: pk(),
+    orgId: orgId(),
+    number: text('number').notNull(),
+
+    invoiceId: text('invoice_id').notNull(),
+    customerId: text('customer_id'),
+    /**
+     * The claim this credit settles, when a cargo claim is resolved by
+     * deducting from the freight bill rather than by paying the claimant.
+     */
+    claimId: text('claim_id'),
+
+    reason: text('reason', { enum: CREDIT_REASONS }).notNull(),
+    detail: text('detail').notNull(),
+    amountCents: money('amount_cents').notNull(),
+    currency: currency(),
+
+    /** Frozen on issue, like the invoice it credits. */
+    issuedAt: ts('issued_at'),
+    documentId: text('document_id'),
+    voidedAt: ts('voided_at'),
+    voidReason: text('void_reason'),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('credit_notes_org_id_uq').on(t.orgId, t.id),
+    uniqueIndex('credit_notes_org_number_uq').on(t.orgId, t.number),
+    index('credit_notes_invoice_idx').on(t.invoiceId),
+    foreignKey({
+      columns: [t.orgId, t.invoiceId],
+      foreignColumns: [invoices.orgId, invoices.id],
+      name: 'credit_notes_invoice_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.customerId],
+      foreignColumns: [customers.orgId, customers.id],
+      name: 'credit_notes_customer_fk',
+    }),
   ],
 );
 
@@ -277,6 +349,7 @@ export const settlementLines = sqliteTable(
 
 export type Invoice = typeof invoices.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
+export type CreditNote = typeof creditNotes.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type Settlement = typeof settlements.$inferSelect;
 export type SettlementLine = typeof settlementLines.$inferSelect;

@@ -32,8 +32,9 @@ npm run build
 nothing lets a driver record one from the cab. The offline capture built for inspection photos is
 the obvious model.
 
-**Credit notes.** An issued invoice can be voided only while no money has landed against it.
-Once a payment exists the correct instrument is a credit, and there is nowhere to raise one.
+**Refunds.** A credit can leave money owing back to a customer, and the credit note asks how they
+want it settled — but nothing records the refund actually going out. That needs a payment-out
+alongside the payments-in already modelled.
 
 **Sending the letters.** OpenHaul writes the Part 370 letters and freezes them; a carrier still
 attaches and sends them by hand. Delivery, and proof of delivery, is the gap.

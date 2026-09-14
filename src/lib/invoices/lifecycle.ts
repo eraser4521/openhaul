@@ -452,7 +452,15 @@ export async function recordPayment(
 
   const rows = await scoped.select('payments', eq(paymentsTable.invoiceId, invoiceId));
   const paid = sumPayments(rows);
-  const status = statusAfterPayment(invoice.totalCents, paid);
+
+  /*
+   * Credits count toward settling the balance just as payments do, so they are
+   * part of the status. Leaving them out strands an invoice at "partially
+   * paid" when a credit and a payment together clear it, and the carrier then
+   * chases a balance that is not owed.
+   */
+  const credited = invoice.creditedCents;
+  const status = statusAfterPayment(invoice.totalCents, paid, credited);
 
   await scoped.update('invoices', eq(invoicesTable.id, invoiceId), {
     paidCents: paid,
@@ -464,7 +472,11 @@ export async function recordPayment(
     await scoped.update('loads', eq(loadsTable.id, invoice.loadId), { status: 'paid' });
   }
 
-  return { ok: true, paidCents: paid, balanceCents: balanceCents(invoice.totalCents, paid) };
+  return {
+    ok: true,
+    paidCents: paid,
+    balanceCents: balanceCents(invoice.totalCents, paid, credited),
+  };
 }
 
 /* -------------------------------------------------------------------------

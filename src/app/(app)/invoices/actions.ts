@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { PAYMENT_METHODS, PAYMENT_TERMS } from '@/lib/db/schema';
+import { CREDIT_REASONS, PAYMENT_METHODS, PAYMENT_TERMS } from '@/lib/db/schema';
 import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
 import { appendAudit, AUDIT } from '@/lib/audit/chain';
 import { parseMoney, type Charges } from '@/lib/invoices/compute';
@@ -13,6 +13,8 @@ import {
   updateDraft,
   voidInvoice,
 } from '@/lib/invoices/lifecycle';
+import { raiseCreditNote, voidCreditNote } from '@/lib/invoices/credits';
+import { buildCreditDocument } from '@/lib/invoices/credit-document';
 
 export interface InvoiceActionResult {
   ok: boolean;
@@ -289,6 +291,126 @@ export async function voidInvoiceAction(
     action: AUDIT.invoiceVoided,
     subject: `invoice:${invoiceId}`,
     detail: { reason: reason.trim() },
+  });
+
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath('/invoices');
+
+  return { ok: true, invoiceId };
+}
+
+/* -------------------------------------------------------------------------
+ * Credit notes
+ * ---------------------------------------------------------------------- */
+
+const creditSchema = z.object({
+  reason: z.enum(CREDIT_REASONS),
+  detail: z.string().trim().min(1, 'Say what is being credited and why.').max(1000),
+  amount: z.string().trim().min(1, 'Enter the amount to credit.'),
+  claimId: z.string().trim().min(1).nullable(),
+});
+
+/**
+ * Raises a credit against an issued invoice.
+ *
+ * Audited as its own action rather than folded into the invoice's history: a
+ * credit is somebody deciding not to collect money that was claimed, which is
+ * exactly the decision an audit asks about later.
+ */
+export async function raiseCreditAction(
+  invoiceId: string,
+  formData: FormData,
+): Promise<InvoiceActionResult> {
+  let context;
+  try {
+    context = await requireCapability('invoice.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const claimId = formData.get('claimId');
+
+  const parsed = creditSchema.safeParse({
+    reason: formData.get('reason') ?? 'other',
+    detail: formData.get('detail') ?? '',
+    amount: formData.get('amount') ?? '',
+    claimId: typeof claimId === 'string' && claimId !== '' ? claimId : null,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the credit.' };
+  }
+
+  const amountCents = parseMoney(parsed.data.amount);
+  if (amountCents === null) {
+    return { ok: false, error: `“${parsed.data.amount}” is not an amount.` };
+  }
+
+  const { session, db } = context;
+
+  const result = await raiseCreditNote(db, {
+    invoiceId,
+    reason: parsed.data.reason,
+    detail: parsed.data.detail,
+    amountCents,
+    claimId: parsed.data.claimId,
+  });
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  const document = await buildCreditDocument(db, result.creditNoteId!);
+  if (!document.ok) return { ok: false, error: document.error };
+
+  await appendAudit({
+    orgId: session.orgId,
+    actorId: session.userId,
+    actorRole: session.role,
+    action: AUDIT.creditNoteRaised,
+    subject: `credit_note:${result.creditNoteId}`,
+    detail: {
+      number: result.number,
+      invoiceId,
+      amountCents,
+      reason: parsed.data.reason,
+      claimId: parsed.data.claimId,
+      balanceCents: result.balanceCents,
+      documentId: document.documentId,
+      sha256: document.sha256,
+    },
+  });
+
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath('/invoices');
+  revalidatePath('/documents');
+
+  return { ok: true, invoiceId };
+}
+
+export async function voidCreditAction(
+  invoiceId: string,
+  creditNoteId: string,
+  formData: FormData,
+): Promise<InvoiceActionResult> {
+  let context;
+  try {
+    context = await requireCapability('invoice.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const reason = String(formData.get('reason') ?? '').slice(0, 500);
+  const { session, db } = context;
+
+  const result = await voidCreditNote(db, creditNoteId, reason);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  await appendAudit({
+    orgId: session.orgId,
+    actorId: session.userId,
+    actorRole: session.role,
+    action: AUDIT.creditNoteVoided,
+    subject: `credit_note:${creditNoteId}`,
+    detail: { invoiceId, reason: reason.trim() },
   });
 
   revalidatePath(`/invoices/${invoiceId}`);

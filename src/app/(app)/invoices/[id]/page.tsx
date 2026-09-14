@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { Download, FileText, Truck } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import {
+  claims as claimsTable,
   customers as customersTable,
   invoices as invoicesTable,
   loads as loadsTable,
@@ -27,6 +28,8 @@ import { INVOICE_STATUS_TONE, invoiceStatusLabel, paymentMethodLabel } from '@/l
 import { can } from '@/lib/auth/capabilities';
 import { InvoiceDraftForm } from '@/components/app/invoice-draft-form';
 import { PaymentForm, VoidInvoice } from '@/components/app/payment-form';
+import { CreditNotes } from '@/components/app/credit-notes';
+import { checkCreditable, creditsFor } from '@/lib/invoices/credits';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -56,17 +59,25 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const invoice = await db.selectOne('invoices', eq(invoicesTable.id, id));
   if (!invoice) notFound();
 
-  const [customer, load, paymentRows] = await Promise.all([
+  const [customer, load, paymentRows, creditRows, creditGate] = await Promise.all([
     invoice.customerId
       ? db.selectOne('customers', eq(customersTable.id, invoice.customerId))
       : Promise.resolve(null),
     invoice.loadId ? db.selectOne('loads', eq(loadsTable.id, invoice.loadId)) : Promise.resolve(null),
     db.select('payments', eq(paymentsTable.invoiceId, id)),
+    creditsFor(db, id),
+    checkCreditable(db, id),
   ]);
+
+  // Claims on the same load, so a credit can name the one it settles.
+  const loadClaims = invoice.loadId
+    ? await db.select('claims', eq(claimsTable.loadId, invoice.loadId))
+    : [];
+  const claimNumbers = new Map(loadClaims.map((claim) => [claim.id, claim.number]));
 
   const now = new Date();
   const status = effectiveStatus(invoice, now);
-  const balance = balanceCents(invoice.totalCents, invoice.paidCents);
+  const balance = balanceCents(invoice.totalCents, invoice.paidCents, invoice.creditedCents);
 
   const charges = {
     lineHaulCents: invoice.lineHaulCents,
@@ -140,7 +151,12 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             { label: 'Total invoiced', value: money(invoice.totalCents) },
             { label: 'Received', value: money(invoice.paidCents) },
             {
-              label: balance >= 0 ? 'Balance due' : 'Overpaid by',
+              label: 'Credited',
+              value: money(invoice.creditedCents),
+              hint: invoice.creditedCents > 0 ? 'The invoice itself is unchanged' : undefined,
+            },
+            {
+              label: balance >= 0 ? 'Balance due' : 'Refund due',
               value: money(Math.abs(balance)),
             },
             {
@@ -215,6 +231,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 <dt className="font-semibold text-ink">Total invoiced</dt>
                 <dd className="font-semibold text-ink tabular-nums">{money(invoice.totalCents)}</dd>
               </div>
+
+              {invoice.creditedCents > 0 && (
+                <div className="flex justify-between px-5 py-3">
+                  <dt className="text-ink-secondary">Credited by note</dt>
+                  <dd className="text-ink tabular-nums">({money(invoice.creditedCents)})</dd>
+                </div>
+              )}
             </dl>
 
             {invoice.notes && (
@@ -300,6 +323,34 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 View
               </a>
             </Card>
+          </section>
+        )}
+
+        {invoice.status !== 'draft' && invoice.status !== 'void' && (
+          <section>
+            <CreditNotes
+              invoiceId={invoice.id}
+              canWrite={canWrite}
+              creditableCents={creditGate.creditableCents ?? 0}
+              blockedReason={creditGate.ok ? null : (creditGate.reason ?? null)}
+              claims={loadClaims.map((claim) => ({
+                id: claim.id,
+                number: claim.number,
+                claimantName: claim.claimantName,
+              }))}
+              notes={creditRows.map((note) => ({
+                id: note.id,
+                number: note.number,
+                reason: note.reason,
+                detail: note.detail,
+                amountCents: note.amountCents,
+                createdAt: note.createdAt,
+                voidedAt: note.voidedAt,
+                voidReason: note.voidReason,
+                documentId: note.documentId,
+                claimNumber: note.claimId ? (claimNumbers.get(note.claimId) ?? null) : null,
+              }))}
+            />
           </section>
         )}
 

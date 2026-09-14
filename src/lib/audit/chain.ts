@@ -251,6 +251,8 @@ export const AUDIT = {
   invoiceCreated: 'invoice.created',
   invoiceIssued: 'invoice.issued',
   invoiceVoided: 'invoice.voided',
+  creditNoteRaised: 'credit_note.raised',
+  creditNoteVoided: 'credit_note.voided',
   paymentRecorded: 'payment.recorded',
 
   driverCreated: 'driver.created',
