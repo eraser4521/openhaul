@@ -3,12 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { loads } from '@/lib/db/schema';
 import { appendAudit, AUDIT } from '@/lib/audit/chain';
 import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
-import type { ScopedDb } from '@/lib/db/scope';
 import { classifyVin, isValidVin, normalizeVin } from '@/lib/vin';
 import { missingStopFields, readStopParty, saveStop } from '@/lib/loads/route';
+import { nextLoadNumber } from '@/lib/loads/numbering';
 import { readCustomer, upsertCustomer } from '@/lib/customers/upsert';
 
 export interface LoadActionResult {
@@ -52,18 +51,6 @@ const createLoadSchema = z.object({
   instructions: z.string().trim().max(4000).optional(),
   vehicles: z.array(vehicleSchema).min(1, 'Add at least one vehicle.').max(12),
 });
-
-/** Next sequential reference, scoped to the organisation. */
-async function nextLoadNumber(scoped: ScopedDb): Promise<string> {
-  const [latest] = await scoped.select('loads', undefined, {
-    orderBy: { column: loads.createdAt, direction: 'desc' },
-    limit: 1,
-  });
-
-  const match = latest?.number ? /(\d+)$/.exec(latest.number) : null;
-  const next = match?.[1] ? Number.parseInt(match[1], 10) + 1 : 1001;
-  return `OH-${next}`;
-}
 
 export async function suggestLoadNumber(): Promise<string> {
   try {

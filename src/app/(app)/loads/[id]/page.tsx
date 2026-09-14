@@ -192,6 +192,8 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
           loadId={load.id}
           pickup={pickupVenue}
           delivery={deliveryVenue}
+          pickupNote={stops.find((stop) => stop.kind === 'pickup')?.notes ?? null}
+          deliveryNote={stops.find((stop) => stop.kind === 'delivery')?.notes ?? null}
           canEdit={can(session.role, 'load.write')}
         />
 

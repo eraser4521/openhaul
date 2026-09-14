@@ -12,10 +12,27 @@ export interface RouteCardProps {
   loadId: string;
   pickup: StopDefaults | null;
   delivery: StopDefaults | null;
+  /**
+   * What the stop says when it has no address yet.
+   *
+   * An import that only knew a city and a state writes it here rather than
+   * inventing a street, and without showing it the load would read as having
+   * no route at all.
+   */
+  pickupNote?: string | null;
+  deliveryNote?: string | null;
   canEdit: boolean;
 }
 
-function Summary({ label, stop }: { label: string; stop: StopDefaults | null }) {
+function Summary({
+  label,
+  stop,
+  note,
+}: {
+  label: string;
+  stop: StopDefaults | null;
+  note?: string | null;
+}) {
   return (
     <div className="min-w-0">
       <p className="text-xs font-medium tracking-wide text-ink-muted uppercase">{label}</p>
@@ -34,6 +51,13 @@ function Summary({ label, stop }: { label: string; stop: StopDefaults | null }) 
             </p>
           )}
         </>
+      ) : note ? (
+        <>
+          <p className="mt-1 text-sm leading-relaxed text-ink-secondary">{note}</p>
+          <p className="mt-1 text-xs text-warn">
+            A bill of lading needs the full address.
+          </p>
+        </>
       ) : (
         <p className="mt-1 text-sm text-ink-muted">Not recorded yet</p>
       )}
@@ -41,7 +65,14 @@ function Summary({ label, stop }: { label: string; stop: StopDefaults | null }) 
   );
 }
 
-export function RouteCard({ loadId, pickup, delivery, canEdit }: RouteCardProps) {
+export function RouteCard({
+  loadId,
+  pickup,
+  delivery,
+  pickupNote,
+  deliveryNote,
+  canEdit,
+}: RouteCardProps) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -124,8 +155,8 @@ export function RouteCard({ loadId, pickup, delivery, canEdit }: RouteCardProps)
         /* No entrance animation: this is the resting state of the card, and
            fading it in would leave it blank until frames run. */
         <div className="grid gap-5 p-5 sm:grid-cols-2">
-          <Summary label="Pickup" stop={pickup} />
-          <Summary label="Delivery" stop={delivery} />
+          <Summary label="Pickup" stop={pickup} note={pickupNote} />
+          <Summary label="Delivery" stop={delivery} note={deliveryNote} />
         </div>
       )}
     </Card>

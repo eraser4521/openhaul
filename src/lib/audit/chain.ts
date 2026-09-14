@@ -237,6 +237,7 @@ export const AUDIT = {
   loadStatusChanged: 'load.status.changed',
   loadVoided: 'load.voided',
   loadDispatched: 'load.dispatched',
+  loadsImported: 'load.imported',
 
   inspectionStarted: 'inspection.started',
   inspectionFinalized: 'inspection.finalized',

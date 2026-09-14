@@ -111,6 +111,7 @@ template does not reproduce the record that was actually agreed.
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
+| **Import** | CSV and dispatch-sheet exports, mapped column by column and previewed row by row before anything is written |
 | **Offline** | Inspections, photos, signatures and expenses captured on device and queued for upload |
 
 ---
@@ -483,9 +484,30 @@ and inspection photographs past the window anybody could still use them as evide
 with every object behind them — the served copy, the thumbnail, and the original still carrying
 EXIF and a GPS fix — and a file two records share is left alone.
 
-**Not built yet.** Nothing on the original list. What is missing now is smaller and specific: load
-import from CSV, and carrying an overpayment against a customer's next invoice rather than
-refunding it. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Loads already living in a spreadsheet or a board export come in as a file rather than as typing.
+Every export names the same twenty things differently, so the columns are guessed from their
+headers and the guess is shown with a sample value beside it — an off-by-one column is obvious
+when "Pickup City" reads `950`. Rows sharing a load number become one load with several vehicles,
+which is how a multi-car order is exported.
+
+Nothing is written until the whole file has been read back to you: what each load would be, and
+what is wrong with it. The refusals are the point. Dates are read month-first because these files
+come from US boards, and `25/12/2026` — which cannot be read that way — is reported rather than
+quietly switched to day-first for one cell. A VIN that fails its check digit imports with a flag,
+because it is probably a typo and possibly a genuine oddity. Several VINs in one cell become
+several vehicles, and the row's year and make are dropped, because there is no way to tell which
+VIN they belonged to and a Tesla recorded as a 2003 Honda is worse than a blank. A load number
+already in use is refused outright; a VIN already on an open load is only flagged, because a car
+really can move twice.
+
+What the file does not contain is not invented. A venue needs a name, a street, a city, a state
+and a postal code, and a board export usually carries a city and a state — so no venue is written,
+the stop keeps what was known as a note, and the preview says which of the five are missing. An
+invented street would end up on a bill of lading.
+
+**Not built yet.** Nothing on the original list. What is missing now is one thing: carrying an
+overpayment against a customer's next invoice rather than refunding it. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

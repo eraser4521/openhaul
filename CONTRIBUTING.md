@@ -33,9 +33,6 @@ owed back: refunded, which is recorded, or applied against their next invoice, w
 needs a customer-level credit balance rather than a per-invoice one, and something to spend it
 against when the next invoice is raised.
 
-**Load import.** CSV and parsed dispatch sheets. This meets carriers where their loads already are
-without needing a load board of our own.
-
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.
 

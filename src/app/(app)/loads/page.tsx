@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Plus, Truck } from 'lucide-react';
+import { ArrowRight, Plus, Truck, Upload } from 'lucide-react';
 import { inArray } from 'drizzle-orm';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { vehicles as vehiclesTable, type LoadStatus } from '@/lib/db/schema';
@@ -53,10 +53,19 @@ export default async function LoadsPage() {
         title="Loads"
         description={`${allLoads.length} load${allLoads.length === 1 ? '' : 's'} on the books`}
         actions={
-          <Link href="/loads/new" className={cn(buttonVariants())}>
-            <Plus aria-hidden />
-            New load
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/loads/import"
+              className={cn(buttonVariants({ variant: 'secondary' }))}
+            >
+              <Upload aria-hidden />
+              Import
+            </Link>
+            <Link href="/loads/new" className={cn(buttonVariants())}>
+              <Plus aria-hidden />
+              New load
+            </Link>
+          </div>
         }
       />
 
@@ -65,7 +74,7 @@ export default async function LoadsPage() {
           <EmptyState
             icon={Truck}
             title="No loads yet"
-            description="Create your first load. Enter or scan each VIN and OpenHaul fills in the year, make and model from NHTSA automatically."
+            description="Create your first load, or import a dispatch sheet you already have. Enter or scan each VIN and OpenHaul fills in the year, make and model from NHTSA automatically."
             action={
               <Link href="/loads/new" className={cn(buttonVariants())}>
                 <Plus aria-hidden />
