@@ -10,7 +10,7 @@ Scan VINs with a phone camera, build legally-sound electronic bills of lading, p
 condition with timestamped photos, and invoice the broker — from one app on your own server.
 No per-truck fees. No vendor holding your paperwork.
 
-[![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/ci.yml)
+[![CI](https://github.com/eraser4521/openhaul/actions/workflows/ci.yml/badge.svg)](https://github.com/eraser4521/openhaul/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 
 </div>
@@ -114,7 +114,7 @@ template does not reproduce the record that was actually agreed.
 Requires **Node 20.9+** (24 LTS recommended). Nothing else — no database server, no Docker.
 
 ```bash
-git clone https://github.com/OWNER/REPO.git openhaul
+git clone https://github.com/eraser4521/openhaul.git openhaul
 cd openhaul
 npm install
 npm run keys:generate   # writes .env.local with fresh secrets

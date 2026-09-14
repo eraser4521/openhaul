@@ -8,7 +8,7 @@ cargo claim, a description of how the work actually goes is the most valuable th
 ## Getting set up
 
 ```bash
-git clone https://github.com/OWNER/REPO.git openhaul
+git clone https://github.com/eraser4521/openhaul.git openhaul
 cd openhaul
 npm install
 npm run keys:generate

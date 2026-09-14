@@ -22,7 +22,7 @@ No database server. No Docker, unless you want it.
 ## First run
 
 ```bash
-git clone https://github.com/OWNER/REPO.git openhaul
+git clone https://github.com/eraser4521/openhaul.git openhaul
 cd openhaul
 npm ci
 npm run keys:generate
