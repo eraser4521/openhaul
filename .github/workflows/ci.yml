@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same branch rather than paying for both.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, test and build
+    runs-on: ubuntu-latest
+
+    env:
+      # Deterministic throwaway values. The app refuses to start without them,
+      # and CI must never depend on a real secret to compile.
+      OPENHAUL_KEYS: v1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      OPENHAUL_INDEX_KEY_VERSION: '1'
+      PASSWORD_PEPPER: QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI=
+      DATABASE_URL: file:./data/ci.db
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Migrate
+        run: npm run db:migrate
+
+      - name: Verify the audit log is append-only
+        # The triggers are a security control, so a migration that silently
+        # stopped creating them should fail the build rather than ship.
+        run: |
+          node -e "
+          const { createClient } = require('@libsql/client');
+          const c = createClient({ url: process.env.DATABASE_URL });
+          (async () => {
+            const r = await c.execute(\"SELECT name FROM sqlite_master WHERE type='trigger'\");
+            const names = r.rows.map(x => x.name);
+            const required = ['audit_log_no_update', 'audit_log_no_delete'];
+            const missing = required.filter(n => !names.includes(n));
+            if (missing.length) {
+              console.error('Missing append-only triggers: ' + missing.join(', '));
+              process.exit(1);
+            }
+            console.log('Append-only triggers present: ' + names.join(', '));
+            await c.close();
+          })();
+          "
+
+      - name: Build
+        run: npm run build
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # This project is self-hosted by other people, so a compromised release
+      # is a compromised fleet. Production dependencies only: a dev-tool
+      # advisory should not block a security fix from shipping.
+      - run: npm audit --omit=dev --audit-level=high
