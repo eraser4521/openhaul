@@ -110,7 +110,8 @@ template does not reproduce the record that was actually agreed.
 | **Credits** | A reduction is a second document referencing the invoice, never an edit to the one already sent |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
-| **Offline** | Inspections, photos and signatures captured on device and queued for upload |
+| **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
+| **Offline** | Inspections, photos, signatures and expenses captured on device and queued for upload |
 
 ---
 
@@ -386,6 +387,19 @@ receiving server is still trying, and calling that a bounce would have somebody 
 document that is about to arrive. The other half of the gap does not close: a message quietly
 dropped or filed as spam produces nothing to find.
 
+A driver records what they spent from the cab, on the same queue that carries inspection photos —
+saved to the phone first and uploaded when there is signal, because a yard with no bars should not
+cost a driver the money back. The receipt is optional: a figure with no receipt is weaker than one
+with, and far better than nothing written down.
+
+What a driver cannot do is decide what comes back to them. The settlement sweeps up anything marked
+reimbursable automatically, which makes that flag an instruction to pay — so recording an expense
+leaves it awaiting review and a dispatcher, owner or bookkeeper decides. That gives three states
+rather than two, and the distinction matters: "nobody has looked at it yet" and "we looked and said
+no" are the same boolean and a driver watching a receipt sit unacknowledged for a fortnight needs to
+know which one they are looking at. Once a settlement has paid it, nothing here can change it — a
+correction goes on the following statement.
+
 A credit raised after the customer has already paid leaves the carrier holding money that is not
 theirs, and a refund is what closes that. It is recorded rather than derived — which invoice, how
 much, by what method, and the date the money actually left — because the question asked six months
@@ -469,9 +483,9 @@ and inspection photographs past the window anybody could still use them as evide
 with every object behind them — the served copy, the thumbnail, and the original still carrying
 EXIF and a GPS fix — and a file two records share is left alone.
 
-**Not built yet.** Nothing on the original list. What is missing now is smaller and specific:
-driver expense capture from the cab, load import from CSV, and carrying an overpayment against a
-customer's next invoice rather than refunding it. See [CONTRIBUTING.md](CONTRIBUTING.md).
+**Not built yet.** Nothing on the original list. What is missing now is smaller and specific: load
+import from CSV, and carrying an overpayment against a customer's next invoice rather than
+refunding it. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

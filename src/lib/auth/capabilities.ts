@@ -26,6 +26,12 @@ export const CAPABILITIES = {
   'settlement.read': ['owner', 'dispatcher', 'accounting'],
   'settlement.write': ['owner', 'accounting'],
   'equipment.write': ['owner', 'dispatcher'],
+  // A driver records what they spent; they do not decide what comes back.
+  // Approving is effectively an instruction to pay, so it sits with the people
+  // who run the settlements rather than with the person being paid.
+  'expense.read': ['owner', 'dispatcher', 'driver', 'accounting'],
+  'expense.write': ['owner', 'dispatcher', 'driver'],
+  'expense.approve': ['owner', 'dispatcher', 'accounting'],
   'claim.read': ['owner', 'dispatcher', 'accounting'],
   'claim.write': ['owner', 'dispatcher'],
   'pii.read': ['owner'],

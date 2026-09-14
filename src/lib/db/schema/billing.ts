@@ -1,6 +1,6 @@
 import { sqliteTable, text, integer, index, uniqueIndex, foreignKey } from 'drizzle-orm/sqlite-core';
 import { bool, currency, money, orgId, pk, timestamps, ts } from '../columns';
-import { organizations } from './auth';
+import { organizations, users } from './auth';
 import { customers, loads, PAYMENT_METHODS, PAYMENT_TERMS } from './operations';
 
 export const INVOICE_STATUSES = [
@@ -25,6 +25,7 @@ export const EXPENSE_CATEGORIES = [
   'permit',
   'other',
 ] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
 /**
  * An invoice raised against a load.
@@ -277,8 +278,21 @@ export const expenses = sqliteTable(
     receiptStorageKey: text('receipt_storage_key'),
     receiptSha256: text('receipt_sha256'),
 
-    /** Passed through to the customer rather than absorbed by the carrier. */
+    /**
+     * Whether the carrier pays this back to the driver.
+     *
+     * Not the driver's decision. A driver who could mark their own fuel
+     * reimbursable on a percentage lease would be authorising their own
+     * repayment, and the settlement sweeps this flag up automatically — so a
+     * driver records the expense and somebody else decides.
+     */
     reimbursable: bool('reimbursable').notNull().default(false),
+    /**
+     * When that decision was made. Null means nobody has looked yet, which is
+     * a different thing from "decided no" and has to be visible as one.
+     */
+    reviewedAt: ts('reviewed_at'),
+    reviewedByUserId: text('reviewed_by_user_id').references(() => users.id),
     reimbursedAt: ts('reimbursed_at'),
 
     ...timestamps,

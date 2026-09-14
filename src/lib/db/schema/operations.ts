@@ -33,6 +33,22 @@ export const LOAD_STATUSES = [
 ] as const;
 export type LoadStatus = (typeof LOAD_STATUSES)[number];
 
+/**
+ * Statuses that mean a load is live work rather than history.
+ *
+ * Defined once because two screens ask the same question and a second copy
+ * would drift the first time a status was added.
+ */
+export const OPEN_LOAD_STATUSES: LoadStatus[] = [
+  'draft',
+  'posted',
+  'offered',
+  'accepted',
+  'dispatched',
+  'picked_up',
+  'in_transit',
+];
+
 /** Statuses after which the load record becomes legally significant. */
 export const IMMUTABLE_AFTER: LoadStatus[] = ['delivered', 'invoiced', 'delivery_verified', 'paid'];
 

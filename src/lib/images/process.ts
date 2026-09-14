@@ -219,6 +219,65 @@ export async function processInspectionPhoto(bytes: Buffer): Promise<ProcessedIm
 }
 
 /**
+ * Long edge of a stored receipt.
+ *
+ * Larger than a vehicle photo, and deliberately. A receipt is read rather than
+ * looked at, and a thermal print of a fuel stop is low-contrast text that
+ * turns to mush before the image looks obviously bad — the failure mode is a
+ * legible-seeming picture nobody can actually read the total off.
+ */
+const RECEIPT_LONG_EDGE = 2000;
+
+/** 8 MB. The device has already compressed it before this is reached. */
+const RECEIPT_MAX_BYTES = 8 * 1024 * 1024;
+
+export interface ProcessedReceipt {
+  bytes: Buffer;
+  width: number;
+  height: number;
+}
+
+/**
+ * Normalises a photographed receipt.
+ *
+ * Re-encoded like every other upload, which is the same security control: what
+ * was hiding in the container does not survive a decode. EXIF goes with it —
+ * a receipt's evidential value is the printed total and the date the driver
+ * enters, not where the phone was standing, and keeping a position fix on
+ * every fuel stop would build a movement history nobody asked for.
+ */
+export async function processReceipt(bytes: Buffer): Promise<ProcessedReceipt> {
+  if (bytes.byteLength === 0) throw new ImageRejected('The file is empty.');
+  if (bytes.byteLength > RECEIPT_MAX_BYTES) {
+    throw new ImageRejected('That photo is too large. It should be compressed on the device first.');
+  }
+
+  sniffImageType(bytes);
+
+  let metadata;
+  try {
+    metadata = await sharp(bytes).metadata();
+  } catch {
+    throw new ImageRejected('That file is not a readable image.');
+  }
+
+  const pixels = (metadata.width ?? 0) * (metadata.height ?? 0);
+  if (pixels === 0) throw new ImageRejected('That image has no dimensions.');
+  if (pixels > 80_000_000) throw new ImageRejected('That image has an implausible resolution.');
+
+  const output = await sharp(bytes)
+    .rotate()
+    .resize(RECEIPT_LONG_EDGE, RECEIPT_LONG_EDGE, { fit: 'inside', withoutEnlargement: true })
+    // Quality 88 rather than the 82 used for vehicle photos: JPEG artefacts
+    // land hardest on sharp edges, and a receipt is nothing but sharp edges.
+    .jpeg({ quality: 88, mozjpeg: true })
+    .toBuffer();
+
+  const final = await sharp(output).metadata();
+  return { bytes: output, width: final.width ?? 0, height: final.height ?? 0 };
+}
+
+/**
  * Long edge of a stored logo.
  *
  * A logo prints at most 168 points wide, which is 700 pixels at 300 dpi — the

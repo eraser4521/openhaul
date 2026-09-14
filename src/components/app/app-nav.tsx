@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   Truck,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
 import { Logo, LogoMark } from '@/components/ui/logo';
@@ -47,6 +48,9 @@ const NAV: NavItem[] = [
     capability: 'inspection.read',
     primary: true,
   },
+  // Primary for a driver: it is the only screen on this list they act on daily
+  // besides an inspection, and it has to be one tap from wherever they are.
+  { href: '/expenses', label: 'Expenses', icon: Wallet, capability: 'expense.read', primary: true },
   { href: '/customers', label: 'Customers', icon: Users, capability: 'customer.read' },
   { href: '/drivers', label: 'Drivers', icon: IdCard, capability: 'driver.read' },
   { href: '/invoices', label: 'Invoices', icon: Receipt, capability: 'invoice.read' },

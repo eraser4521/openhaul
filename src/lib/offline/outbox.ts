@@ -1,6 +1,6 @@
 'use client';
 
-import { localDb, type LocalPhoto } from './db';
+import { localDb, type LocalExpense, type LocalPhoto } from './db';
 
 /**
  * Upload queue for captured inspection work.
@@ -96,11 +96,11 @@ export async function flushOutbox(): Promise<FlushResult> {
 
   try {
     if (!(await isReachable())) {
-      const remaining = await localDb.photos
-        .where('uploadState')
-        .anyOf('pending', 'failed')
-        .count();
-      return { uploaded: 0, failed: 0, remaining };
+      const [photosLeft, expensesLeft] = await Promise.all([
+        localDb.photos.where('uploadState').anyOf('pending', 'failed').count(),
+        localDb.expenses.where('uploadState').anyOf('pending', 'failed').count(),
+      ]);
+      return { uploaded: 0, failed: 0, remaining: photosLeft + expensesLeft };
     }
 
     await reclaimStalledUploads();
@@ -152,15 +152,139 @@ export async function flushOutbox(): Promise<FlushResult> {
       );
     }
 
-    const remaining = await localDb.photos
-      .where('uploadState')
-      .anyOf('pending', 'failed')
-      .count();
+    const expenses = await flushExpenses();
+    uploaded += expenses.uploaded;
+    failed += expenses.failed;
 
-    return { uploaded, failed, remaining };
+    const [photosLeft, expensesLeft] = await Promise.all([
+      localDb.photos.where('uploadState').anyOf('pending', 'failed').count(),
+      localDb.expenses.where('uploadState').anyOf('pending', 'failed').count(),
+    ]);
+
+    return { uploaded, failed, remaining: photosLeft + expensesLeft };
   } finally {
     flushing = false;
   }
+}
+
+/**
+ * Sends one expense, with its receipt if there is one.
+ *
+ * The expense id is the idempotency key, exactly as the photo id is. A
+ * response lost after the server committed must resolve to the same row on
+ * retry: the failure being prevented here is one tank of fuel becoming two
+ * reimbursements.
+ */
+async function uploadExpense(expense: LocalExpense): Promise<void> {
+  const body = new FormData();
+  body.set('expenseId', expense.id);
+  body.set('category', expense.category);
+  body.set('amount', expense.amount);
+  body.set('incurredAt', expense.incurredAt);
+  if (expense.loadId) body.set('loadId', expense.loadId);
+  if (expense.vendor) body.set('vendor', expense.vendor);
+  if (expense.notes) body.set('notes', expense.notes);
+  if (expense.receipt) body.set('receipt', expense.receipt, `${expense.id}.jpg`);
+
+  const response = await fetch('/api/expenses', { method: 'POST', body });
+
+  if (!response.ok) {
+    /*
+     * A 4xx will fail the same way forever, so retrying it only burns battery
+     * and keeps a row in the queue that nothing will ever clear. Marked as
+     * exhausted immediately instead, which surfaces it to the driver.
+     */
+    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new PermanentUploadError(body?.error ?? `rejected (${response.status})`);
+    }
+    throw new Error(`upload failed (${response.status})`);
+  }
+}
+
+/** A failure that will not come right on its own. */
+class PermanentUploadError extends Error {
+  readonly permanent = true;
+}
+
+/**
+ * Pushes queued expenses.
+ *
+ * Kept separate from the photo pass rather than merged into it: a receipt is
+ * one small image against an inspection's twelve, and a driver who has just
+ * entered fuel wants it gone before a backlog of photos from this morning.
+ */
+async function flushExpenses(): Promise<{ uploaded: number; failed: number }> {
+  let uploaded = 0;
+  let failed = 0;
+
+  for (;;) {
+    const now = Date.now();
+    const batch = await localDb.expenses
+      .where('uploadState')
+      .anyOf('pending', 'failed')
+      .filter((e) => e.nextAttemptAt <= now && e.attempts < MAX_ATTEMPTS)
+      .limit(CONCURRENCY)
+      .toArray();
+
+    if (batch.length === 0) break;
+
+    await Promise.all(
+      batch.map(async (expense) => {
+        await localDb.expenses.update(expense.id, { uploadState: 'uploading' });
+
+        try {
+          await uploadExpense(expense);
+          // Drop the receipt the moment the server has it, for the same reason
+          // a photo is dropped: holding it only widens the window in which the
+          // browser could evict something not yet backed up.
+          await localDb.expenses.update(expense.id, {
+            uploadState: 'uploaded',
+            lastError: null,
+            receipt: null,
+          });
+          uploaded += 1;
+        } catch (error) {
+          const permanent = error instanceof PermanentUploadError;
+          const attempts = permanent ? MAX_ATTEMPTS : expense.attempts + 1;
+
+          await localDb.expenses.update(expense.id, {
+            uploadState: 'failed',
+            attempts,
+            nextAttemptAt: permanent ? 0 : Date.now() + backoffDelay(attempts),
+            lastError: error instanceof Error ? error.message : 'upload failed',
+          });
+          failed += 1;
+        }
+      }),
+    );
+  }
+
+  return { uploaded, failed };
+}
+
+/** Expenses still on the device, for the screen to show a queue depth. */
+export async function pendingExpenses(): Promise<LocalExpense[]> {
+  const rows = await localDb.expenses
+    .where('uploadState')
+    .anyOf('pending', 'failed', 'uploading')
+    .toArray();
+  return rows.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** Clears the retry budget on expenses, so the driver can try again by hand. */
+export async function retryFailedExpenses(): Promise<void> {
+  const failed = await localDb.expenses.where('uploadState').equals('failed').toArray();
+  await Promise.all(
+    failed.map((e) =>
+      localDb.expenses.update(e.id, { uploadState: 'pending', attempts: 0, nextAttemptAt: 0 }),
+    ),
+  );
+}
+
+/** Forgets one the driver no longer wants to send. */
+export async function discardLocalExpense(id: string): Promise<void> {
+  await localDb.expenses.delete(id);
 }
 
 /**

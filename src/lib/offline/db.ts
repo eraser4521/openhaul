@@ -110,11 +110,34 @@ export interface LocalSignature {
   uploadState: PhotoUploadState;
 }
 
+export interface LocalExpense {
+  /** Client-generated UUIDv7, and the idempotency key for the upload. */
+  id: string;
+  loadId: string | null;
+  category: string;
+  /** Kept as the typed string so a half-entered amount survives a reload. */
+  amount: string;
+  incurredAt: string;
+  vendor: string | null;
+  notes: string | null;
+
+  /** Null when the driver recorded a figure without photographing anything. */
+  receipt: Blob | null;
+  receiptSha256: string | null;
+
+  createdAt: number;
+  uploadState: PhotoUploadState;
+  attempts: number;
+  nextAttemptAt: number;
+  lastError: string | null;
+}
+
 const database = new Dexie('openhaul') as Dexie & {
   inspections: EntityTable<LocalInspection, 'id'>;
   photos: EntityTable<LocalPhoto, 'id'>;
   damages: EntityTable<LocalDamage, 'id'>;
   signatures: EntityTable<LocalSignature, 'id'>;
+  expenses: EntityTable<LocalExpense, 'id'>;
 };
 
 /*
@@ -127,6 +150,17 @@ database.version(1).stores({
   photos: 'id, inspectionId, uploadState, sha256, [inspectionId+slot], nextAttemptAt',
   damages: 'id, inspectionId',
   signatures: 'id, inspectionId, uploadState',
+});
+
+// Adding a store only. Version 1's stores are repeated unchanged, because
+// omitting one in a later version deletes it — along with any inspection still
+// waiting to upload.
+database.version(2).stores({
+  inspections: 'id, loadId, vehicleId, syncState, [loadId+stage]',
+  photos: 'id, inspectionId, uploadState, sha256, [inspectionId+slot], nextAttemptAt',
+  damages: 'id, inspectionId',
+  signatures: 'id, inspectionId, uploadState',
+  expenses: 'id, loadId, uploadState, nextAttemptAt',
 });
 
 export const localDb = database;
@@ -156,15 +190,18 @@ export interface StorageStatus {
   /** Captured work that has not reached the server yet. */
   pendingPhotos: number;
   pendingInspections: number;
+  pendingExpenses: number;
 }
 
 export async function storageStatus(): Promise<StorageStatus> {
-  const [persisted, estimate, pendingPhotos, pendingInspections] = await Promise.all([
-    navigator.storage?.persisted?.().catch(() => false) ?? Promise.resolve(false),
-    navigator.storage?.estimate?.().catch(() => null) ?? Promise.resolve(null),
-    localDb.photos.where('uploadState').anyOf('pending', 'failed', 'uploading').count(),
-    localDb.inspections.where('syncState').anyOf('draft', 'queued', 'syncing').count(),
-  ]);
+  const [persisted, estimate, pendingPhotos, pendingInspections, pendingExpenses] =
+    await Promise.all([
+      navigator.storage?.persisted?.().catch(() => false) ?? Promise.resolve(false),
+      navigator.storage?.estimate?.().catch(() => null) ?? Promise.resolve(null),
+      localDb.photos.where('uploadState').anyOf('pending', 'failed', 'uploading').count(),
+      localDb.inspections.where('syncState').anyOf('draft', 'queued', 'syncing').count(),
+      localDb.expenses.where('uploadState').anyOf('pending', 'failed', 'uploading').count(),
+    ]);
 
   return {
     persisted,
@@ -172,6 +209,7 @@ export async function storageStatus(): Promise<StorageStatus> {
     quotaBytes: estimate?.quota ?? null,
     pendingPhotos,
     pendingInspections,
+    pendingExpenses,
   };
 }
 

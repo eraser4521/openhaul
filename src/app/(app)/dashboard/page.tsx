@@ -20,20 +20,9 @@ import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { money, miles, ratePerMile, relativeTime } from '@/lib/utils/format';
 import { cn } from '@/lib/utils/cn';
-import type { LoadStatus } from '@/lib/db/schema';
+import { OPEN_LOAD_STATUSES, type LoadStatus } from '@/lib/db/schema';
 
 export const metadata = { title: 'Dashboard' };
-
-/** Statuses that mean the load is live work rather than history. */
-const OPEN_STATUSES: LoadStatus[] = [
-  'draft',
-  'posted',
-  'offered',
-  'accepted',
-  'dispatched',
-  'picked_up',
-  'in_transit',
-];
 
 const STATUS_TONE: Record<LoadStatus, 'neutral' | 'brand' | 'ok' | 'warn' | 'info' | 'danger'> = {
   draft: 'neutral',
@@ -88,7 +77,7 @@ export default async function DashboardPage() {
   // Carrier-scale volumes, so the aggregate is computed in memory rather than
   // pushed into SQL. Revisit if a tenant ever carries tens of thousands of
   // open loads, which a car hauler will not.
-  const openLoads = await db.select('loads', inArray(loads.status, OPEN_STATUSES));
+  const openLoads = await db.select('loads', inArray(loads.status, OPEN_LOAD_STATUSES));
   const allLoads = await db.select('loads');
   const lapsing = await expiringCertificates(db);
 

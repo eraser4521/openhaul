@@ -157,7 +157,7 @@ the procedure linking the signature to the person; every field here exists to an
 | `invoices` | Components stored discretely, not as one total — a broker will hold an invoice over a cent that does not match the rate confirmation |
 | `payments` | Partial payments against an invoice |
 | `refunds` | Money going back out. A separate table, not a negative payment — every figure that asks what an invoice collected sums the payments |
-| `expenses` | Fuel, tolls, car-pulling, with a receipt photo |
+| `expenses` | Fuel, tolls, car-pulling, with a receipt photo. `reviewedAt` separates "nobody has decided" from "decided no", which one boolean cannot |
 | `settlements` | Driver pay: revenue minus broker fees, times the pay rate |
 | `accessorial_rates` | The carrier's own named charges, with a rate and the unit it is counted in |
 | `invoice_accessorials` | One itemised charge on one invoice, holding its own copy of the label and rate |

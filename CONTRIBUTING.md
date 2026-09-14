@@ -28,10 +28,6 @@ npm run build
 
 ## Where help is most useful
 
-**Driver expenses on the road.** Settlements pick up reimbursable expenses with receipts, but
-nothing lets a driver record one from the cab. The offline capture built for inspection photos is
-the obvious model.
-
 **Carrying an overpayment forward.** The credit note offers the customer two ways to settle money
 owed back: refunded, which is recorded, or applied against their next invoice, which is not. That
 needs a customer-level credit balance rather than a per-invoice one, and something to spend it

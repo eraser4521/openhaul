@@ -1,7 +1,7 @@
 'use client';
 
 import { uuidv7 } from 'uuidv7';
-import { localDb, type LocalPhoto } from './db';
+import { localDb, type LocalExpense, type LocalPhoto } from './db';
 
 /**
  * On-device photo capture and compression.
@@ -143,6 +143,73 @@ export async function capturePhoto(input: CaptureInput): Promise<LocalPhoto> {
   } finally {
     bitmap.close();
   }
+}
+
+/**
+ * Long edge of a photographed receipt.
+ *
+ * Bigger than a vehicle photo because a receipt is read, not looked at, and a
+ * thermal print goes illegible well before the picture looks bad. The server
+ * re-encodes to the same figure; compressing here is what keeps the upload
+ * small enough to finish at a truck stop.
+ */
+const RECEIPT_LONG_EDGE = 2000;
+const RECEIPT_QUALITY = 0.88;
+
+export interface ExpenseCaptureInput {
+  loadId: string | null;
+  category: string;
+  /** The typed string, kept verbatim so a reload does not lose a half-entry. */
+  amount: string;
+  incurredAt: string;
+  vendor: string | null;
+  notes: string | null;
+  /** Optional: a driver who has lost the receipt should still record the cost. */
+  file?: File | null;
+  now?: number;
+}
+
+/**
+ * Writes an expense to the device and queues it.
+ *
+ * Nothing here touches the network. A driver entering fuel at a pump with one
+ * bar has the figure saved before the upload is even attempted, and the outbox
+ * carries it whenever signal returns.
+ */
+export async function captureExpense(input: ExpenseCaptureInput): Promise<LocalExpense> {
+  let receipt: Blob | null = null;
+  let receiptSha256: string | null = null;
+
+  if (input.file) {
+    const bitmap = await createImageBitmap(input.file);
+    try {
+      const canvas = drawDownscaled(bitmap, bitmap.width, bitmap.height, RECEIPT_LONG_EDGE);
+      receipt = await toBlob(canvas, RECEIPT_QUALITY);
+      receiptSha256 = await sha256Hex(receipt);
+    } finally {
+      bitmap.close();
+    }
+  }
+
+  const row: LocalExpense = {
+    id: uuidv7(),
+    loadId: input.loadId,
+    category: input.category,
+    amount: input.amount,
+    incurredAt: input.incurredAt,
+    vendor: input.vendor,
+    notes: input.notes,
+    receipt,
+    receiptSha256,
+    createdAt: input.now ?? Date.now(),
+    uploadState: 'pending',
+    attempts: 0,
+    nextAttemptAt: 0,
+    lastError: null,
+  };
+
+  await localDb.expenses.add(row);
+  return row;
 }
 
 /**

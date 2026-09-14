@@ -260,6 +260,8 @@ export const AUDIT = {
   refundRemoved: 'refund.removed',
 
   driverCreated: 'driver.created',
+  expenseRecorded: 'expense.recorded',
+  expenseReviewed: 'expense.reviewed',
   settlementFinalized: 'settlement.finalized',
   settlementPaid: 'settlement.paid',
 
