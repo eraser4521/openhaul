@@ -113,6 +113,9 @@ export const PAYMENT_TERMS = [
 export type PaymentTerms = (typeof PAYMENT_TERMS)[number];
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export const DRIVER_EMPLOYMENT_TYPES = ['company', 'owner_operator'] as const;
+export type DriverEmploymentType = (typeof DRIVER_EMPLOYMENT_TYPES)[number];
+
 export const STOP_KINDS = ['pickup', 'delivery'] as const;
 export type StopKind = (typeof STOP_KINDS)[number];
 
@@ -223,8 +226,23 @@ export const drivers = sqliteTable(
     cdlExpiresOn: ts('cdl_expires_on'),
     medicalCardExpiresOn: ts('medical_card_expires_on'),
 
+    /**
+     * Which body of law the pay arrangement sits under.
+     *
+     * An owner-operator leases their truck to the carrier, and 49 CFR Part 376
+     * then governs the settlement itself: what may be charged back, what
+     * supporting documents must be handed over, how escrow is accounted for,
+     * and how quickly payment must follow the delivery paperwork. None of that
+     * applies to a company driver on payroll.
+     */
+    employmentType: text('employment_type', { enum: DRIVER_EMPLOYMENT_TYPES })
+      .notNull()
+      .default('company'),
+
     /** Share of load revenue, in basis points. 2800 = 28%. */
     payRateBps: integer('pay_rate_bps'),
+    /** Per-mile pay in cents, for drivers paid by the mile rather than a share. */
+    payPerMileCents: integer('pay_per_mile_cents'),
 
     activeAt: ts('active_at'),
     deactivatedAt: ts('deactivated_at'),

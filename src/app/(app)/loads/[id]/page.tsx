@@ -24,6 +24,7 @@ import { DocumentActions } from '@/components/app/document-actions';
 import { RouteCard } from '@/components/app/route-card';
 import { BillToCard } from '@/components/app/bill-to-card';
 import { ClaimPanel } from '@/components/app/claim-panel';
+import { DriverAssign } from '@/components/app/driver-assign';
 import { can } from '@/lib/auth/capabilities';
 
 const STATUS_TONE: Record<LoadStatus, 'neutral' | 'brand' | 'ok' | 'warn' | 'info' | 'danger'> = {
@@ -68,16 +69,18 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
   const load = await db.selectOne('loads', eq(loadsTable.id, id));
   if (!load) notFound();
 
-  const [vehicles, issuedDocuments, stops, loadInvoices, customer, loadClaims] = await Promise.all([
-    db.select('vehicles', eq(vehiclesTable.loadId, load.id)),
-    db.select('documents', eq(documentsTable.loadId, load.id)),
-    db.select('stops', eq(stopsTable.loadId, load.id)),
-    db.select('invoices', eq(invoicesTable.loadId, load.id)),
-    load.customerId
-      ? db.selectOne('customers', eq(customersTable.id, load.customerId))
-      : Promise.resolve(null),
-    db.select('claims', eq(claimsTable.loadId, load.id)),
-  ]);
+  const [vehicles, issuedDocuments, stops, loadInvoices, customer, loadClaims, allDrivers] =
+    await Promise.all([
+      db.select('vehicles', eq(vehiclesTable.loadId, load.id)),
+      db.select('documents', eq(documentsTable.loadId, load.id)),
+      db.select('stops', eq(stopsTable.loadId, load.id)),
+      db.select('invoices', eq(invoicesTable.loadId, load.id)),
+      load.customerId
+        ? db.selectOne('customers', eq(customersTable.id, load.customerId))
+        : Promise.resolve(null),
+      db.select('claims', eq(claimsTable.loadId, load.id)),
+      db.select('drivers'),
+    ]);
 
   // A voided invoice leaves the load billable again, so only a live one counts
   // as "this load is already invoiced".
@@ -180,6 +183,17 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
           pickup={pickupVenue}
           delivery={deliveryVenue}
           canEdit={can(session.role, 'load.write')}
+        />
+
+        <DriverAssign
+          loadId={load.id}
+          currentDriverId={load.driverId}
+          canAssign={can(session.role, 'load.dispatch')}
+          drivers={allDrivers.map((driver) => ({
+            id: driver.id,
+            displayName: driver.displayName,
+            employmentType: driver.employmentType,
+          }))}
         />
 
         <BillToCard

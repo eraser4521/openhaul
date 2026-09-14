@@ -104,6 +104,7 @@ template does not reproduce the record that was actually agreed.
 | **Dispatch** | Multi-stop runs across a 7–10 car deck, weight budget as well as slot count, inoperables flagged before the driver finds out on site |
 | **Invoicing** | Built from the load, with broker rate and margin stored as structured fields and a one-click [49 CFR 371.3][371] transaction record |
 | **Claims** | Statutory deadlines as real dates — [30-day acknowledgement][370-5], [120-day disposition and 60-day status letters][370] — because most small carriers blow the first one |
+| **Settlements** | Per-load pay with the arithmetic shown, itemised chargebacks, and escrow accounted for across periods — the things [49 CFR 376.12][376] requires of a lease |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificate tracking with expiry alerts. Cargo cover for general freight is **not** filed with FMCSA, so an uploaded certificate is the only way to verify it |
 | **Offline** | Inspections, photos and signatures captured on device and queued for upload |
@@ -225,6 +226,7 @@ does is make compliance possible rather than something you reconstruct afterward
 | [49 CFR 370.3][370-3] | The three things that make a written communication a claim, and what does not |
 | [49 CFR 370.5][370-5] | Written acknowledgement of a cargo claim within 30 days |
 | [49 CFR 370.9][370] | Disposition within 120 days, then a status letter every 60 |
+| [49 CFR 376.12][376] | Truth-in-leasing: chargeback itemisation, escrow accounting, the 15-day payment window |
 | [49 CFR 379 App. A][379] | Retention anchored **per record class**, not to a single `created_at` |
 
 That last row is the one most systems get wrong. A single driver's data spans at least eight
@@ -277,8 +279,9 @@ and roles. The security and audit foundations. The full inspection flow: guided 
 capture, on-device compression, AIAG damage coding, signature capture with stroke data, content
 hashing, and sealing. Bill of lading and delivery receipt generation. Invoicing, from raising an
 invoice off a delivered load through to recording payment. Cargo claims, from intake through to a
-written disposition. FMCSA carrier and broker lookups. The offline queue behind it. The marketing
-site.
+written disposition. FMCSA carrier and broker lookups. Driver settlements, including the
+truth-in-leasing disclosures a leased owner-operator is owed. The offline queue behind it. The
+marketing site.
 
 The inspection path is verified end to end against a running instance — a 2.2 MB photo compresses
 to roughly 300 KB on the device, uploads, and is stored as an immutable original plus a stripped
@@ -325,8 +328,18 @@ between you and an unpaid invoice is actually on file. Every result is stored, b
 their authority before we tendered" is a defence and remembering that somebody looked at a screen
 is not.
 
-**Not built yet.** Driver settlements and credit notes against a paid invoice. The data model and
-compliance groundwork for both is in place — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Settlements are where 49 CFR Part 376 bites, and only for a leased owner-operator — a company
+driver is on payroll and the part does not apply, so their statement does not pretend it does. For
+a lease, the statement shows the rated revenue each percentage was taken from ([376.12(d)][376]),
+names every item charged back rather than printing one "deductions" total and tells the driver they
+may examine the documents behind any of it ([376.12(g)][376]), carries a running escrow balance
+across every settlement with the right to demand an accounting ([376.12(h)][376]), and states the
+fifteen-day payment window ([376.12(f)][376]) — after which the settlement is flagged as late. A
+load is picked up by exactly one settlement, dated by delivery rather than dispatch, and the totals
+are only ever a projection of the lines printed beneath them.
+
+**Not built yet.** Credit notes against a paid invoice, and sending any of the documents this
+produces. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -349,6 +362,7 @@ regulations.
 [370]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-370/section-370.9
 [370-3]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-370/section-370.3
 [370-5]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-370/section-370.5
+[376]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-376/subpart-B/section-376.12
 [379]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-379
 [390]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-390/subpart-A/section-390.32
 [esign]: https://www.law.cornell.edu/uscode/text/15/7001

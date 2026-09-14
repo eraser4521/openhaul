@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { applyMigrations } from './helpers/temp-db';
 
 /**
  * The invoice workflow against a real database.
@@ -40,16 +41,7 @@ beforeAll(async () => {
 
   await dbModule.ready();
 
-  // Apply the generated schema. Statements are separated by drizzle's own
-  // breakpoint marker.
-  const sql = await readFile(
-    path.join(process.cwd(), 'drizzle', '0000_clever_sharon_ventura.sql'),
-    'utf8',
-  );
-  for (const statement of sql.split('--> statement-breakpoint')) {
-    const trimmed = statement.trim();
-    if (trimmed) await dbModule.rawClient.execute(trimmed);
-  }
+  await applyMigrations(dbModule.rawClient);
 
   const { asOrgId, forOrg } = await import('@/lib/db/scope');
   lifecycle = await import('@/lib/invoices/lifecycle');

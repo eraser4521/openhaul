@@ -19,6 +19,7 @@ export const DOCUMENT_KINDS = [
   'claim_acknowledgement',
   'claim_status',
   'claim_disposition',
+  'settlement',
   'other',
 ] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];

@@ -40,6 +40,7 @@ export const TENANT_TABLES = {
   payments: schema.payments,
   expenses: schema.expenses,
   settlements: schema.settlements,
+  settlementLines: schema.settlementLines,
   documents: schema.documents,
   claims: schema.claims,
   insuranceCertificates: schema.insuranceCertificates,

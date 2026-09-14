@@ -28,8 +28,9 @@ npm run build
 
 ## Where help is most useful
 
-**Driver settlements.** The schema is there; the workflow is not. Driver pay is a share of load
-revenue net of broker fees, and the expenses and settlements tables already model it.
+**Driver expenses on the road.** Settlements pick up reimbursable expenses with receipts, but
+nothing lets a driver record one from the cab. The offline capture built for inspection photos is
+the obvious model.
 
 **Credit notes.** An issued invoice can be voided only while no money has landed against it.
 Once a payment exists the correct instrument is a credit, and there is nowhere to raise one.

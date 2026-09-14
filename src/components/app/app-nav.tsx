@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import {
   ClipboardCheck,
   FileText,
+  IdCard,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -47,6 +48,7 @@ const NAV: NavItem[] = [
     primary: true,
   },
   { href: '/customers', label: 'Customers', icon: Users, capability: 'customer.read' },
+  { href: '/drivers', label: 'Drivers', icon: IdCard, capability: 'driver.read' },
   { href: '/invoices', label: 'Invoices', icon: Receipt, capability: 'invoice.read' },
   { href: '/claims', label: 'Claims', icon: ShieldAlert, capability: 'claim.read' },
   { href: '/documents', label: 'Documents', icon: FileText, capability: 'load.read' },

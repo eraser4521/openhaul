@@ -253,6 +253,10 @@ export const AUDIT = {
   invoiceVoided: 'invoice.voided',
   paymentRecorded: 'payment.recorded',
 
+  driverCreated: 'driver.created',
+  settlementFinalized: 'settlement.finalized',
+  settlementPaid: 'settlement.paid',
+
   claimFiled: 'claim.filed',
   claimStatusChanged: 'claim.status.changed',
 

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 import {
   documents as documentsTable,
+  drivers as driversTable,
   inspections as inspectionsTable,
   loads as loadsTable,
   vehicles as vehiclesTable,
@@ -110,10 +111,69 @@ export async function issueDocumentAction(
     },
   });
 
+  /*
+   * The delivery date is stamped here, from the sealed delivery inspection,
+   * because issuing the receipt is the moment delivery is evidenced. Three
+   * other things depend on it — the nine-month window a cargo claim has to be
+   * filed in, the delivered date on the invoice, and which pay period a
+   * driver's load falls into — and none of them can be right if nothing ever
+   * writes it. Only set once: a reissued receipt does not move the date the
+   * vehicles actually arrived.
+   */
+  if (kind === 'pod' && !load.deliveredAt) {
+    const deliveredAt =
+      sealed
+        .map((inspection) => inspection.finalizedAt)
+        .filter((at): at is Date => at !== null)
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? new Date();
+
+    await db.update('loads', eq(loadsTable.id, loadId), { deliveredAt });
+  }
+
   revalidatePath(`/loads/${loadId}`);
   revalidatePath('/documents');
 
   return { ok: true, documentId: result.documentId };
+}
+
+export interface AssignResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Puts a driver on the load.
+ *
+ * Separate from booking because loads are routinely built before anybody knows
+ * who is taking them, and it is the assignment — not the booking — that
+ * decides whose settlement the load lands on.
+ */
+export async function assignDriverAction(
+  loadId: string,
+  driverId: string | null,
+): Promise<AssignResult> {
+  let context;
+  try {
+    context = await requireCapability('load.dispatch');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const { db } = context;
+
+  const load = await db.selectOne('loads', eq(loadsTable.id, loadId));
+  if (!load) return { ok: false, error: 'No such load.' };
+
+  if (driverId) {
+    const driver = await db.selectOne('drivers', eq(driversTable.id, driverId));
+    if (!driver) return { ok: false, error: 'No such driver.' };
+  }
+
+  await db.update('loads', eq(loadsTable.id, loadId), { driverId });
+
+  revalidatePath(`/loads/${loadId}`);
+  revalidatePath('/drivers');
+  return { ok: true };
 }
 
 export interface RouteResult {

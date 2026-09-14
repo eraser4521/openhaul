@@ -188,7 +188,12 @@ export const settlements = sqliteTable(
     netPayCents: money('net_pay_cents').notNull().default(0),
     currency: currency(),
 
+    /** Frozen once finalised; the statement handed over is the record. */
+    finalizedAt: ts('finalized_at'),
+    documentId: text('document_id'),
+
     paidAt: ts('paid_at'),
+    paymentReference: text('payment_reference'),
     notes: text('notes'),
     ...timestamps,
   },
@@ -203,7 +208,75 @@ export const settlements = sqliteTable(
   ],
 );
 
+/**
+ * Every line on a settlement statement.
+ *
+ * Totals alone do not make a settlement. For a leased owner-operator, 49 CFR
+ * 376.12(g) requires the carrier to identify every item charged back and to
+ * let the driver examine the documents behind it, and 376.12(d) requires the
+ * rated revenue to be shown when pay is a percentage of it. A statement that
+ * says "deductions: $412" satisfies neither, so each line stands on its own
+ * with what it was for and where the proof is.
+ *
+ * Amounts are magnitudes and the kind decides the direction — a deduction of
+ * 5000 takes $50.00 off. A negative amount within a kind is therefore a
+ * reversal of that kind, which is how a mistaken chargeback is undone without
+ * deleting the line somebody already saw.
+ */
+export const SETTLEMENT_LINE_KINDS = [
+  'load_pay',
+  'bonus',
+  'reimbursement',
+  'deduction',
+  'escrow_deposit',
+  'escrow_return',
+  'advance',
+] as const;
+export type SettlementLineKind = (typeof SETTLEMENT_LINE_KINDS)[number];
+
+export const settlementLines = sqliteTable(
+  'settlement_lines',
+  {
+    id: pk(),
+    orgId: orgId(),
+    settlementId: text('settlement_id').notNull(),
+
+    kind: text('kind', { enum: SETTLEMENT_LINE_KINDS }).notNull(),
+    sequence: integer('sequence').notNull().default(0),
+
+    description: text('description').notNull(),
+    amountCents: money('amount_cents').notNull(),
+
+    /** The load this line arose from, for pay and load-specific chargebacks. */
+    loadId: text('load_id'),
+    /** The driver expense being reimbursed, which carries the receipt. */
+    expenseId: text('expense_id'),
+    /** A stored document supporting a chargeback, per 376.12(g). */
+    documentId: text('document_id'),
+
+    /** How the figure was arrived at: "28% of $2,940.00", "1,074 mi @ $0.55". */
+    basisNote: text('basis_note'),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('settlement_lines_org_id_uq').on(t.orgId, t.id),
+    index('settlement_lines_settlement_idx').on(t.settlementId),
+    foreignKey({
+      columns: [t.orgId, t.settlementId],
+      foreignColumns: [settlements.orgId, settlements.id],
+      name: 'settlement_lines_settlement_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.loadId],
+      foreignColumns: [loads.orgId, loads.id],
+      name: 'settlement_lines_load_fk',
+    }),
+  ],
+);
+
 export type Invoice = typeof invoices.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
 export type Settlement = typeof settlements.$inferSelect;
+export type SettlementLine = typeof settlementLines.$inferSelect;

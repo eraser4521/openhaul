@@ -20,8 +20,11 @@ export const CAPABILITIES = {
   'payment.write': ['owner', 'accounting'],
   'customer.read': ['owner', 'dispatcher', 'accounting'],
   'customer.write': ['owner', 'dispatcher'],
-  'driver.read': ['owner', 'dispatcher'],
+  'driver.read': ['owner', 'dispatcher', 'accounting'],
   'driver.write': ['owner'],
+  // Running a settlement is accounting work; approving who drives is not.
+  'settlement.read': ['owner', 'dispatcher', 'accounting'],
+  'settlement.write': ['owner', 'accounting'],
   'equipment.write': ['owner', 'dispatcher'],
   'claim.read': ['owner', 'dispatcher', 'accounting'],
   'claim.write': ['owner', 'dispatcher'],
