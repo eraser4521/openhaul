@@ -127,6 +127,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     damageId: (String(form.get('damageId') ?? '') || null) as string | null,
 
     storageKey: derivative.key,
+    // Recorded so a retention purge can reach them. Without these the original,
+    // which still carries EXIF and a GPS fix, outlives every deletion.
+    originalStorageKey: original.key,
+    thumbnailStorageKey: thumbnail.key,
     sha256: derivative.sha256,
     byteSize: derivative.byteSize,
     contentType: 'image/jpeg',

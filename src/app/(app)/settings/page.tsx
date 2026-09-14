@@ -16,6 +16,10 @@ import { TemplateEditor, type TemplateValues } from '@/components/app/template-e
 import { AccessorialCatalogue } from '@/components/app/accessorial-catalogue';
 import { allTemplates } from '@/lib/branding/template';
 import { listRates } from '@/lib/branding/accessorials';
+import { RetentionPanel } from '@/components/app/retention-panel';
+import { retentionReport } from '@/lib/retention/engine';
+import { activeHolds } from '@/lib/retention/holds';
+import { ANCHOR_LABEL } from '@/lib/retention/policy';
 import type { TemplateScope } from '@/lib/db/schema';
 import { VerifyChainButton } from './verify-chain';
 
@@ -50,15 +54,18 @@ function hours(ms: number): string {
 export default async function SettingsPage() {
   const { session, db } = await requireSessionOrRedirect();
 
-  const [mfaEnabled, recoveryLeft, sessions, head, org, templates, rates] = await Promise.all([
-    isMfaEnabled(session.userId),
-    remainingRecoveryCodes(session.userId),
-    listSessions(session.userId),
-    chainHead(),
-    getOrganization(session.orgId),
-    allTemplates(db),
-    listRates(db, { includeRetired: true }),
-  ]);
+  const [mfaEnabled, recoveryLeft, sessions, head, org, templates, rates, retention, holds] =
+    await Promise.all([
+      isMfaEnabled(session.userId),
+      remainingRecoveryCodes(session.userId),
+      listSessions(session.userId),
+      chainHead(),
+      getOrganization(session.orgId),
+      allTemplates(db),
+      listRates(db, { includeRetired: true }),
+      retentionReport(db),
+      activeHolds(db),
+    ]);
 
   const policy = SESSION_POLICY[session.role];
 
@@ -132,6 +139,37 @@ export default async function SettingsPage() {
             defaultCents: rate.defaultCents,
             note: rate.note,
             active: rate.active,
+          }))}
+        />
+
+        <RetentionPanel
+          canEdit={can(session.role, 'settings.write')}
+          canPurge={can(session.role, 'retention.purge')}
+          rows={retention.map((report) => ({
+            recordClass: report.recordClass,
+            label: report.policy.label,
+            covers: report.policy.covers,
+            note: report.policy.note,
+            citation: report.policy.citation,
+            anchorLabel: ANCHOR_LABEL[report.policy.anchorType],
+            disposition: report.policy.disposition,
+            retentionDays: report.policy.retentionDays,
+            floorDays: report.policy.floorDays,
+            customised: report.policy.customised,
+            total: report.total,
+            due: report.due,
+            held: report.held,
+            pending: report.pending,
+            keeping: report.keeping,
+            bytes: report.bytes,
+            unreachable: report.unreachable,
+            oldestDueAt: report.oldestDueAt?.toISOString() ?? null,
+          }))}
+          holds={holds.map((hold) => ({
+            id: hold.id,
+            subject: hold.subject,
+            reason: hold.reason,
+            placedAt: hold.placedAt.toISOString(),
           }))}
         />
 

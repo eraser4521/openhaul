@@ -407,6 +407,32 @@ line copies its label and rate at the moment it is added, so raising your detent
 does not rewrite what you charged last month, and the invoice's accessorial figure is always the
 sum of its lines rather than a number typed beside them.
 
+Retention is per record class, and the reason is that it cannot be anything else. A bill of lading
+runs from the day it was sealed, the photographs run from delivery, a cargo claim runs from the day
+it was disallowed, a driver record runs from the day they left — four different events, and anything
+keyed off one `created_at` is wrong somewhere. So each class carries its own period, its own anchor,
+the regulatory floor it cannot be taken below and the citation for that floor, and the settings
+screen shows all four rather than a number you have to trust.
+
+Three things are refused rather than computed. A record with no anchor yet is never due, so an
+undelivered load, an open claim and a current driver cannot be destroyed however long they have
+existed. A legal hold on the load, the driver or the whole organisation beats every period — filing
+a cargo claim places one automatically, and one hold released does not expose a load a second is
+still protecting. And a period below the floor is refused with the rule that sets it, rather than
+silently accepted.
+
+Nothing runs on a timer. The engine reports; destroying anything is a form somebody fills in, for
+one class at a time, after reading how many records go — and the count has to be typed to confirm
+it. Even then most classes are never deleted at all: invoices, claims and settlements are reported
+only, because "past its retention period" and "should be destroyed" are different statements and
+the second one is not the app's to make on a schedule. Driver records point at erasing the personal
+data instead, which leaves the record and destroys the key.
+
+What a purge does take is what costs real money and real exposure: sealed PDFs past their period,
+and inspection photographs past the window anybody could still use them as evidence in. Those go
+with every object behind them — the served copy, the thumbnail, and the original still carrying
+EXIF and a GPS fix — and a file two records share is left alone.
+
 **Not built yet.** Nothing on the original list. What is missing now is smaller and specific: a
 payment-out to close a refund, and driver expense capture from the cab. See
 [CONTRIBUTING.md](CONTRIBUTING.md).

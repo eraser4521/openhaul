@@ -118,6 +118,22 @@ export const inspectionPhotos = sqliteTable(
     /** Content-addressed storage key; the SHA is the identity. */
     storageKey: text('storage_key').notNull(),
     sha256: text('sha256').notNull(),
+
+    /**
+     * The other two objects written for this photo.
+     *
+     * The upload stores three things: the untouched original, the stripped
+     * derivative that is actually served, and a thumbnail. Only the derivative
+     * was recorded here, which meant the original — the one still carrying EXIF
+     * and a GPS fix — could not be found again, and so could not be deleted
+     * when the photo's retention period ran out. Recording all three is what
+     * makes a purge actually reach them.
+     *
+     * Null on rows written before this existed; the retention report counts
+     * those separately rather than pretending they were cleaned up.
+     */
+    originalStorageKey: text('original_storage_key'),
+    thumbnailStorageKey: text('thumbnail_storage_key'),
     byteSize: integer('byte_size').notNull(),
     contentType: text('content_type').notNull(),
     width: integer('width'),

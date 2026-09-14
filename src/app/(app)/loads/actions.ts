@@ -163,10 +163,6 @@ export async function createLoadAction(
       data.tariff !== null && data.rate !== null ? Math.max(0, data.tariff - data.rate) : null,
     distanceMiles: data.distanceMiles ?? null,
     instructions: data.instructions || null,
-    // Default retention is seven years: the regulatory floor for a bill of
-    // lading is one, but Carmack allows a claim at nine months and suit two
-    // years after denial, so the real exposure is far longer.
-    retainUntil: new Date(Date.now() + 7 * 365 * 24 * 60 * 60 * 1000),
   });
 
   if (!created) {

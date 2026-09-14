@@ -32,7 +32,17 @@ export const organizations = sqliteTable(
     phone: text('phone'),
     email: text('email'),
 
-    /** Retention floor in days. Defaults to 7 years — see docs/COMPLIANCE.md. */
+    /**
+     * Superseded by `retention_policies`, and no longer read.
+     *
+     * One figure across every record class is the mistake the policy table
+     * exists to correct: a bill of lading, a delivery photograph and a carrier
+     * authority check do not share a clock. Worse, shipped at seven years it
+     * silently overrode the three chosen for photographs, so the screen
+     * explained one period while enforcing another. Left in place because
+     * dropping a column earns nothing and a raised value is at least a record
+     * of what that carrier intended.
+     */
     retentionDays: integer('retention_days').notNull().default(2557),
 
     ...timestamps,

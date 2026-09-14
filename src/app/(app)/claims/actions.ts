@@ -96,6 +96,8 @@ export async function fileClaimAction(formData: FormData): Promise<ClaimActionRe
     demandAmountCents,
     description: parsed.data.description,
     filedAt,
+    actorUserId: session.userId,
+    actorRole: session.role,
   });
 
   if (!result.ok) return { ok: false, error: result.error };
@@ -297,7 +299,10 @@ export async function releaseHoldAction(claimId: string): Promise<ClaimActionRes
   }
 
   const { session, db } = context;
-  const result = await releaseHold(db, claimId);
+  const result = await releaseHold(db, claimId, {
+    userId: session.userId,
+    role: session.role,
+  });
   if (!result.ok) return { ok: false, error: result.error };
 
   await appendAudit({

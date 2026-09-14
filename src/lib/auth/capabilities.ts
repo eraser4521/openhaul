@@ -33,6 +33,9 @@ export const CAPABILITIES = {
   // point is that a future change to who may read cannot silently hand out
   // the ability to destroy.
   'pii.erase': ['owner'],
+  // Destroying records the business may still need is a different act from
+  // configuring how long they are kept, so it is a different capability.
+  'retention.purge': ['owner'],
   'settings.write': ['owner'],
   'audit.read': ['owner'],
   'member.manage': ['owner'],

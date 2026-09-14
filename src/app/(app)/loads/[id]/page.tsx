@@ -26,6 +26,7 @@ import { BillToCard } from '@/components/app/bill-to-card';
 import { ClaimPanel } from '@/components/app/claim-panel';
 import { DriverAssign } from '@/components/app/driver-assign';
 import { can } from '@/lib/auth/capabilities';
+import { loadRetention } from '@/lib/retention/engine';
 
 const STATUS_TONE: Record<LoadStatus, 'neutral' | 'brand' | 'ok' | 'warn' | 'info' | 'danger'> = {
   draft: 'neutral',
@@ -92,7 +93,11 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
     return (await db.selectOne('venues', eq(venuesTable.id, stop.venueId))) ?? null;
   };
 
-  const [pickupVenue, deliveryVenue] = await Promise.all([venueFor('pickup'), venueFor('delivery')]);
+  const [pickupVenue, deliveryVenue, retention] = await Promise.all([
+    venueFor('pickup'),
+    venueFor('delivery'),
+    loadRetention(db, id),
+  ]);
 
   const unverifiedVins = vehicles.filter((v) => v.vinCheckDigitValid === false);
   const inoperable = vehicles.filter((v) => v.isInoperable);
@@ -322,17 +327,31 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
           <h2 className="mb-3 text-sm font-semibold text-ink">Retention</h2>
           <Card className="p-5">
             <p className="text-sm leading-relaxed text-ink-secondary">
-              Documents for this load are kept until{' '}
-              <strong className="text-ink">
-                {load.retainUntil?.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                }) ?? 'no date set'}
-              </strong>
-              . The regulatory floor for a bill of lading is one year, but a cargo claim can be
-              filed up to nine months after delivery and suit brought two years after a denial, so
-              the default is seven.
+              {retention.held ? (
+                <>
+                  <strong className="text-ink">Nothing for this load is destroyed.</strong>{' '}
+                  {retention.basis}
+                </>
+              ) : retention.until ? (
+                <>
+                  Records for this load are kept until{' '}
+                  <strong className="text-ink">
+                    {retention.until.toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </strong>
+                  . {retention.basis}
+                </>
+              ) : (
+                retention.basis
+              )}
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+              Worked out from the periods in force rather than stored when the load was booked: a
+              bill of lading runs from the day it was sealed and the photographs run from delivery,
+              neither of which is the day the load was created.
             </p>
           </Card>
         </section>

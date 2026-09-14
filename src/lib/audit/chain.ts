@@ -274,4 +274,6 @@ export const AUDIT = {
   dataExported: 'data.exported',
   legalHoldPlaced: 'legal_hold.placed',
   legalHoldReleased: 'legal_hold.released',
+  retentionPolicyChanged: 'retention.policy.changed',
+  recordsPurged: 'retention.purged',
 } as const;

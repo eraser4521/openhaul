@@ -184,8 +184,8 @@ re-derived on every write rather than adjusted.
 | `claims` | Cargo claims with the 30/120/180/240-day deadlines as real dates |
 | `insurance_certificates` | Expiry tracking. Cargo cover for general freight is **not** filed with FMCSA, so an uploaded certificate is the only verification available |
 | `carrier_checks` | Cached FMCSA authority lookups. The service has had extended outages, so nothing hard-fails on it |
-| `retention_policies` | Per record class, with an anchor type and a citation |
-| `legal_holds` | Suspends every retention and purge job for a subject |
+| `retention_policies` | Per record class, with an anchor type and a citation. Rows exist only where a carrier has overridden a default |
+| `legal_holds` | Suspends every retention and purge job for a subject. Several may sit on one subject at once |
 
 ### Why retention has its own table
 
@@ -208,6 +208,16 @@ somewhere, so each policy records its own `anchorType`, `retentionDays`, `floorD
 The floor for a bill of lading is one year; the default is seven, because Carmack allows a claim up
 to nine months after delivery and suit two years after a denial. Tenants can raise it. They cannot
 go below the regulatory minimum.
+
+The defaults live in `src/lib/retention/policy.ts` rather than in the table: a row is written only
+when a carrier overrides one, so a floor corrected in a later version reaches every instance that
+never touched it. `organizations.retentionDays` predates all of this and is no longer read — one
+figure across every class is the mistake this table exists to correct, and shipped at seven years
+it silently overrode the three chosen for photographs.
+
+`legal_holds` allows several live rows per subject because two claims on one load are two
+independent reasons to keep it. `loads.legalHold` is kept in step as the flag the load screens read,
+and is only cleared once the last hold on that load is released.
 
 ---
 

@@ -43,6 +43,13 @@
       "when": 1789409327340,
       "tag": "0005_nervous_mimic",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789424089654,
+      "tag": "0006_stormy_menace",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,7 @@ import {
 import type { ScopedDb } from '../db/scope';
 import { getOrganization } from '../organization/profile';
 import { storeDocument } from '../documents/store';
+import { holdOnLoad, placeHold, releaseHolds } from '../retention/holds';
 import { brandFor } from '../branding/template';
 import {
   claimLetterTitle,
@@ -70,6 +71,10 @@ export interface FileClaimInput {
   description: string;
   /** The date the written claim was received, which is what the clocks run from. */
   filedAt: Date;
+
+  /** Who filed it, recorded against the legal hold this places on the load. */
+  actorUserId?: string | null;
+  actorRole?: string | null;
 }
 
 export interface FileClaimResult {
@@ -131,7 +136,12 @@ export async function fileClaim(
    * sweep does not know a claim is coming.
    */
   if (input.loadId) {
-    await scoped.update('loads', eq(loadsTable.id, input.loadId), { legalHold: true });
+    await placeHold(
+      scoped,
+      holdOnLoad(input.loadId),
+      `Cargo claim ${number} filed by ${input.claimantName.trim()}`,
+      { userId: input.actorUserId ?? null, role: input.actorRole ?? null },
+    );
   }
 
   return {
@@ -529,6 +539,7 @@ export async function withdrawClaim(
 export async function releaseHold(
   scoped: ScopedDb,
   claimId: string,
+  actor?: { userId: string | null; role: string | null },
 ): Promise<{ ok: boolean; error?: string }> {
   const claim = await scoped.selectOne('claims', eq(claimsTable.id, claimId));
   if (!claim) return { ok: false, error: 'No such claim.' };
@@ -549,7 +560,16 @@ export async function releaseHold(
     };
   }
 
-  await scoped.update('loads', eq(loadsTable.id, claim.loadId), { legalHold: false });
+  /*
+   * Releases every hold on the load, not just this claim's. A second claim on
+   * the same load places its own, and `releaseHolds` leaves the flag set while
+   * any of them is still live — so closing one claim cannot expose a load that
+   * another is still protecting.
+   */
+  await releaseHolds(scoped, holdOnLoad(claim.loadId), {
+    userId: actor?.userId ?? null,
+    role: actor?.role ?? null,
+  });
   return { ok: true };
 }
 
