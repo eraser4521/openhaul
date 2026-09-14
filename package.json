@@ -22,7 +22,8 @@
     "db:studio": "drizzle-kit studio",
     "keys:generate": "node scripts/generate-secrets.mjs",
     "icons": "node scripts/generate-icons.mjs",
-    "postinstall": "node scripts/copy-wasm.mjs"
+    "postinstall": "node scripts/copy-wasm.mjs",
+    "publish": "node scripts/publish-to-github.mjs"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",
