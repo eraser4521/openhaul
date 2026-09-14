@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { AlertTriangle, Check, ClipboardCheck, ScanLine, Wrench } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import {
+  claims as claimsTable,
   customers as customersTable,
   documents as documentsTable,
   invoices as invoicesTable,
@@ -22,6 +23,7 @@ import { money, miles, ratePerMile, relativeTime, vinDisplay } from '@/lib/utils
 import { DocumentActions } from '@/components/app/document-actions';
 import { RouteCard } from '@/components/app/route-card';
 import { BillToCard } from '@/components/app/bill-to-card';
+import { ClaimPanel } from '@/components/app/claim-panel';
 import { can } from '@/lib/auth/capabilities';
 
 const STATUS_TONE: Record<LoadStatus, 'neutral' | 'brand' | 'ok' | 'warn' | 'info' | 'danger'> = {
@@ -66,7 +68,7 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
   const load = await db.selectOne('loads', eq(loadsTable.id, id));
   if (!load) notFound();
 
-  const [vehicles, issuedDocuments, stops, loadInvoices, customer] = await Promise.all([
+  const [vehicles, issuedDocuments, stops, loadInvoices, customer, loadClaims] = await Promise.all([
     db.select('vehicles', eq(vehiclesTable.loadId, load.id)),
     db.select('documents', eq(documentsTable.loadId, load.id)),
     db.select('stops', eq(stopsTable.loadId, load.id)),
@@ -74,6 +76,7 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
     load.customerId
       ? db.selectOne('customers', eq(customersTable.id, load.customerId))
       : Promise.resolve(null),
+    db.select('claims', eq(claimsTable.loadId, load.id)),
   ]);
 
   // A voided invoice leaves the load billable again, so only a live one counts
@@ -265,6 +268,41 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
               }))}
           />
         </section>
+
+        <ClaimPanel
+          loadId={load.id}
+          loadNumber={load.number}
+          vehicles={vehicles.map((vehicle) => ({
+            id: vehicle.id,
+            vin: vehicle.vin,
+            description:
+              [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') ||
+              'Not decoded',
+          }))}
+          claims={loadClaims
+            .slice()
+            .sort((a, b) => b.filedAt.getTime() - a.filedAt.getTime())
+            .map((claim) => ({
+              id: claim.id,
+              number: claim.number,
+              status: claim.status,
+              claimantName: claim.claimantName,
+              demandAmountCents: claim.demandAmountCents,
+              filedAt: claim.filedAt,
+            }))}
+          today={new Date().toISOString().slice(0, 10)}
+          deliveredOn={
+            load.deliveredAt
+              ? load.deliveredAt.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  timeZone: 'UTC',
+                })
+              : null
+          }
+          canFile={can(session.role, 'claim.write')}
+        />
 
         <section>
           <h2 className="mb-3 text-sm font-semibold text-ink">Retention</h2>

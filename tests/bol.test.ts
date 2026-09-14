@@ -1,6 +1,6 @@
-import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
+import { isPdf, pageCount, pdfText } from './helpers/pdf-text';
 import sharp from 'sharp';
 import { checkBolRequirements, renderBol, type BolInput, type BolVehicle } from '@/lib/documents/bol';
 
@@ -140,47 +140,6 @@ describe('checkBolRequirements', () => {
  * Rendering
  * ---------------------------------------------------------------------- */
 
-async function pageCount(bytes: Uint8Array): Promise<number> {
-  const pdf = await PDFDocument.load(bytes);
-  return pdf.getPageCount();
-}
-
-function isPdf(bytes: Uint8Array): boolean {
-  return Buffer.from(bytes.subarray(0, 5)).toString('ascii') === '%PDF-';
-}
-
-/**
- * Recovers the words actually printed on the page.
- *
- * Asserting on the input would prove nothing about what a consignee ends up
- * holding, so this reads the text back out of the content streams. Letter
- * spacing is drawn one glyph at a time, so runs are rejoined before matching.
- */
-async function textOf(bytes: Uint8Array): Promise<string> {
-  const pdf = await PDFDocument.load(bytes);
-  const runs: string[] = [];
-
-  for (const [, object] of pdf.context.enumerateIndirectObjects()) {
-    if (!(object instanceof PDFRawStream)) continue;
-    const filter = object.dict.get(PDFName.of('Filter'));
-    if (!filter || !String(filter).includes('FlateDecode')) continue;
-
-    let decoded: Buffer;
-    try {
-      decoded = inflateSync(Buffer.from(object.contents));
-    } catch {
-      continue;
-    }
-
-    const stream = decoded.toString('latin1');
-    if (!stream.includes('Tj')) continue;
-    for (const match of stream.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)) {
-      runs.push(Buffer.from(match[1] ?? '', 'hex').toString('latin1'));
-    }
-  }
-
-  return runs.join('');
-}
 
 describe('renderBol', () => {
   it('produces a valid PDF', async () => {
@@ -196,7 +155,7 @@ describe('renderBol', () => {
   });
 
   it('declares the bill of lading non-negotiable on its face', async () => {
-    const text = await textOf(await renderBol(input()));
+    const text = await pdfText(await renderBol(input()));
     expect(text).toContain('NON-NEGOTIABLE');
     expect(text).toContain('STRAIGHT BILL OF LADING');
   });
@@ -208,7 +167,7 @@ describe('renderBol', () => {
      * claims a status it does not have, so the masthead and the first term
      * both have to say what this document actually is.
      */
-    const text = await textOf(await renderBol(input({ kind: 'pod', documentNumber: 'POD-OH-1001' })));
+    const text = await pdfText(await renderBol(input({ kind: 'pod', documentNumber: 'POD-OH-1001' })));
 
     expect(text).toContain('DELIVERY RECEIPT');
     expect(text).toContain('It is not itself a bill of lading');
@@ -216,13 +175,13 @@ describe('renderBol', () => {
   });
 
   it('tells the consignee that unnoted damage may not be recoverable', async () => {
-    const text = await textOf(await renderBol(input({ kind: 'pod', documentNumber: 'POD-OH-1001' })));
+    const text = await pdfText(await renderBol(input({ kind: 'pod', documentNumber: 'POD-OH-1001' })));
     expect(text).toContain('acknowledges receipt of the vehicles');
     expect(text).toContain('may not be recoverable');
   });
 
   it('prints the five fields the regulation requires where they can be read', async () => {
-    const text = await textOf(await renderBol(input()));
+    const text = await pdfText(await renderBol(input()));
 
     expect(text).toContain('Cardinal Auction Dallas'); // consignor
     expect(text).toContain('Desert Motors Phoenix'); // consignee
@@ -232,7 +191,7 @@ describe('renderBol', () => {
   });
 
   it('states the claim and suit windows the Carmack Amendment sets', async () => {
-    const text = await textOf(await renderBol(input()));
+    const text = await pdfText(await renderBol(input()));
     expect(text).toContain('nine (9) months');
     expect(text).toContain('two (2) years');
     expect(text).toContain('49 U.S.C. 14706');

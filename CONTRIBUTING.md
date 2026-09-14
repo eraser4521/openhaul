@@ -34,9 +34,8 @@ revenue net of broker fees, and the expenses and settlements tables already mode
 **Credit notes.** An issued invoice can be voided only while no money has landed against it.
 Once a payment exists the correct instrument is a credit, and there is nowhere to raise one.
 
-**The claims workflow.** A claim has a nine-month window and needs to assemble the inspection
-photographs, the condition report and both documents into something a carrier can actually send.
-The evidence is all retained and hash-linked already — this is about the path through it.
+**Sending the letters.** OpenHaul writes the Part 370 letters and freezes them; a carrier still
+attaches and sends them by hand. Delivery, and proof of delivery, is the gap.
 
 **FMCSA carrier lookup.** USDOT and MC numbers, authority status and insurance on file, so a broker
 is not verifying a carrier by hand.

@@ -103,7 +103,7 @@ template does not reproduce the record that was actually agreed.
 |---|---|
 | **Dispatch** | Multi-stop runs across a 7–10 car deck, weight budget as well as slot count, inoperables flagged before the driver finds out on site |
 | **Invoicing** | Built from the load, with broker rate and margin stored as structured fields and a one-click [49 CFR 371.3][371] transaction record |
-| **Claims** | State machine with the [49 CFR 370.9][370] deadlines as real dates — 30-day acknowledgement, 120-day resolution — because most small carriers blow the first one |
+| **Claims** | Statutory deadlines as real dates — [30-day acknowledgement][370-5], [120-day disposition and 60-day status letters][370] — because most small carriers blow the first one |
 | **Insurance** | Certificate tracking with expiry alerts. Cargo cover for general freight is **not** filed with FMCSA, so an uploaded certificate is the only way to verify it |
 | **Offline** | Inspections, photos and signatures captured on device and queued for upload |
 
@@ -221,7 +221,9 @@ does is make compliance possible rather than something you reconstruct afterward
 | [49 CFR 390.32][390] | Electronic documents and signatures, expressly permitted for motor carriers |
 | UCC Article 7 | Non-negotiable straight bills, adopted in all 50 states |
 | [15 U.S.C. 7001(c)][esign] | Versioned ESIGN consent captured for individual shippers, stored by hash so the exact text shown is reproducible |
-| [49 CFR 370.9][370] | Cargo claim timers at 30, 120, 180 and 240 days |
+| [49 CFR 370.3][370-3] | The three things that make a written communication a claim, and what does not |
+| [49 CFR 370.5][370-5] | Written acknowledgement of a cargo claim within 30 days |
+| [49 CFR 370.9][370] | Disposition within 120 days, then a status letter every 60 |
 | [49 CFR 379 App. A][379] | Retention anchored **per record class**, not to a single `created_at` |
 
 That last row is the one most systems get wrong. A single driver's data spans at least eight
@@ -273,8 +275,8 @@ Further reading: [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [DATA_MODEL.md](docs
 and roles. The security and audit foundations. The full inspection flow: guided walk-around
 capture, on-device compression, AIAG damage coding, signature capture with stroke data, content
 hashing, and sealing. Bill of lading and delivery receipt generation. Invoicing, from raising an
-invoice off a delivered load through to recording payment. The offline queue behind it. The
-marketing site.
+invoice off a delivered load through to recording payment. Cargo claims, from intake through to a
+written disposition. The offline queue behind it. The marketing site.
 
 The inspection path is verified end to end against a running instance — a 2.2 MB photo compresses
 to roughly 300 KB on the device, uploads, and is stored as an immutable original plus a stripped
@@ -302,8 +304,18 @@ Payments are recorded against the invoice and the paid total is rebuilt from tho
 time, so a corrected payment cannot leave a stale figure claiming an invoice is settled. The
 receivables view ages by how late payment is, not how old the invoice is.
 
-**Not built yet.** Claims workflow and FMCSA carrier lookup. The data model and compliance
-groundwork for both is in place — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Claims are where the inspection record finally earns its keep. Filing one puts the load's records
+on legal hold so retention cannot age out the evidence, and the screen assembles what the shipper
+has to prove under Carmack — condition at origin, condition at destination, and the difference
+between them, matched on AIAG code so the same dent reported at both ends is not counted as new.
+The deadlines are computed from the date the claim was *received*, not the date somebody typed it
+in, because a claim that sat in an inbox for a fortnight has already spent half its acknowledgement
+window. OpenHaul writes the three letters Part 370 requires and freezes each one; it does not send
+them, and it says so.
+
+**Not built yet.** FMCSA carrier lookup, driver settlements, and credit notes against a paid
+invoice. The data model and compliance groundwork for all three is in place — see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -324,6 +336,8 @@ regulations.
 [373]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-373
 [371]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-371/section-371.3
 [370]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-370/section-370.9
+[370-3]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-370/section-370.3
+[370-5]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-370/section-370.5
 [379]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-379
 [390]: https://www.ecfr.gov/current/title-49/subtitle-B/chapter-III/subchapter-B/part-390/subpart-A/section-390.32
 [esign]: https://www.law.cornell.edu/uscode/text/15/7001

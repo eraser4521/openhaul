@@ -14,6 +14,11 @@ export const DOCUMENT_KINDS = [
   'w9',
   'insurance_certificate',
   'inspection_report',
+  // The letters 49 CFR Part 370 obliges a carrier to send on a cargo claim.
+  // Each one exists to prove a date, so each is frozen like any other record.
+  'claim_acknowledgement',
+  'claim_status',
+  'claim_disposition',
   'other',
 ] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
@@ -151,9 +156,10 @@ export type ClaimStatus = (typeof CLAIM_STATUSES)[number];
 /**
  * A cargo damage claim.
  *
- * 49 CFR 370.9 requires the carrier to acknowledge in writing within 30 days
- * and to pay, decline, or make a firm settlement offer within 120 days, with
- * status letters every 60 days after. Most small carriers miss the 30-day
+ * Two sections, not one: 49 CFR 370.5 requires written acknowledgement within
+ * 30 days, and 370.9 requires the carrier to pay, decline, or make a firm
+ * compromise settlement offer within 120 days, with status letters every 60
+ * days after while the claim stays open. Most small carriers miss the 30-day
  * acknowledgement, so the deadlines are stored as real dates and surfaced.
  */
 export const claims = sqliteTable(

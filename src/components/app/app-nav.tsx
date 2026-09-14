@@ -13,6 +13,7 @@ import {
   Receipt,
   ScanLine,
   Settings,
+  ShieldAlert,
   Truck,
   Users,
   X,
@@ -47,6 +48,7 @@ const NAV: NavItem[] = [
   },
   { href: '/customers', label: 'Customers', icon: Users, capability: 'customer.read' },
   { href: '/invoices', label: 'Invoices', icon: Receipt, capability: 'invoice.read' },
+  { href: '/claims', label: 'Claims', icon: ShieldAlert, capability: 'claim.read' },
   { href: '/documents', label: 'Documents', icon: FileText, capability: 'load.read' },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

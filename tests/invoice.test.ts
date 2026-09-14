@@ -1,6 +1,6 @@
-import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
+import { isPdf, pdfText } from './helpers/pdf-text';
 import {
   ageReceivables,
   agingBucket,
@@ -410,32 +410,6 @@ describe('nextNumberFrom', () => {
  * The printed invoice
  * ---------------------------------------------------------------------- */
 
-async function textOf(bytes: Uint8Array): Promise<string> {
-  const pdf = await PDFDocument.load(bytes);
-  const runs: string[] = [];
-
-  for (const [, object] of pdf.context.enumerateIndirectObjects()) {
-    if (!(object instanceof PDFRawStream)) continue;
-    const filter = object.dict.get(PDFName.of('Filter'));
-    if (!filter || !String(filter).includes('FlateDecode')) continue;
-
-    let decoded: Buffer;
-    try {
-      decoded = inflateSync(Buffer.from(object.contents));
-    } catch {
-      continue;
-    }
-
-    const stream = decoded.toString('latin1');
-    if (!stream.includes('Tj')) continue;
-    for (const match of stream.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)) {
-      runs.push(Buffer.from(match[1] ?? '', 'hex').toString('latin1'));
-    }
-  }
-
-  return runs.join('');
-}
-
 function invoiceInput(overrides: Partial<InvoiceInput> = {}): InvoiceInput {
   return {
     invoiceNumber: 'INV-OH-1001',
@@ -474,12 +448,12 @@ function invoiceInput(overrides: Partial<InvoiceInput> = {}): InvoiceInput {
 describe('renderInvoice', () => {
   it('produces a valid PDF', async () => {
     const bytes = await renderInvoice(invoiceInput());
-    expect(Buffer.from(bytes.subarray(0, 5)).toString('ascii')).toBe('%PDF-');
+    expect(isPdf(bytes)).toBe(true);
     expect(bytes.byteLength).toBeGreaterThan(1000);
   });
 
   it('states who is being billed, for what, and by when', async () => {
-    const text = await textOf(await renderInvoice(invoiceInput()));
+    const text = await pdfText(await renderInvoice(invoiceInput()));
 
     expect(text).toContain('INVOICE');
     expect(text).toContain('INV-OH-1001');
@@ -493,7 +467,7 @@ describe('renderInvoice', () => {
   it('prints the fuel surcharge on its own line', async () => {
     // Brokers audit it separately, and a combined figure invites a short
     // payment while somebody works out the split.
-    const text = await textOf(await renderInvoice(invoiceInput()));
+    const text = await pdfText(await renderInvoice(invoiceInput()));
     expect(text).toContain('Fuel surcharge');
     expect(text).toContain('$180.00');
     expect(text).toContain('$2,940.00');
@@ -501,7 +475,7 @@ describe('renderInvoice', () => {
   });
 
   it('shows what was already collected as a credit, not a payment', async () => {
-    const text = await textOf(
+    const text = await pdfText(
       await renderInvoice(
         invoiceInput({ charges: charges({ codCollectedCents: 95_000 }) }),
       ),
@@ -512,14 +486,14 @@ describe('renderInvoice', () => {
   });
 
   it('shows the balance once a payment has landed', async () => {
-    const text = await textOf(await renderInvoice(invoiceInput({ paidCents: 100_000 })));
+    const text = await pdfText(await renderInvoice(invoiceInput({ paidCents: 100_000 })));
     expect(text).toContain('Payments received');
     expect(text).toContain('Balance due');
     expect(text).toContain('$2,120.00');
   });
 
   it('says nothing is due when the invoice is settled', async () => {
-    const text = await textOf(
+    const text = await pdfText(
       await renderInvoice(invoiceInput({ paidCents: 312_000 })),
     );
     expect(text).toContain('settled in full');
@@ -531,7 +505,7 @@ describe('renderInvoice', () => {
      * then comes after the carrier for money it already advanced. It has to be
      * on the face of the document.
      */
-    const text = await textOf(
+    const text = await pdfText(
       await renderInvoice(invoiceInput({ factoringCompanyName: 'Apex Capital' })),
     );
 
@@ -543,7 +517,7 @@ describe('renderInvoice', () => {
   });
 
   it('redirects the remittance line to the factor, not the carrier', async () => {
-    const text = await textOf(
+    const text = await pdfText(
       await renderInvoice(invoiceInput({ factoringCompanyName: 'Apex Capital' })),
     );
     expect(text).toContain('Please remit');
@@ -552,7 +526,7 @@ describe('renderInvoice', () => {
 
   it('uses the factor’s own wording when it was supplied', async () => {
     // Factors issue their own notice text and require it reproduced exactly.
-    const text = await textOf(
+    const text = await pdfText(
       await renderInvoice(
         invoiceInput({
           factoringCompanyName: 'Apex Capital',
@@ -566,12 +540,12 @@ describe('renderInvoice', () => {
   });
 
   it('omits the notice entirely when the invoice is not factored', async () => {
-    const text = await textOf(await renderInvoice(invoiceInput()));
+    const text = await pdfText(await renderInvoice(invoiceInput()));
     expect(text).not.toContain('NOTICE OF ASSIGNMENT');
   });
 
   it('cites the sealed paperwork so the attachments can be checked', async () => {
-    const text = await textOf(
+    const text = await pdfText(
       await renderInvoice(
         invoiceInput({
           attachments: [
@@ -614,7 +588,7 @@ describe('renderInvoice', () => {
   });
 
   it('renders when the due date is unknown rather than printing a wrong one', async () => {
-    const text = await textOf(
+    const text = await pdfText(
       await renderInvoice(invoiceInput({ terms: 'other', dueAt: null })),
     );
     expect(text).toContain('Per agreement');
