@@ -1,6 +1,7 @@
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { logoutAction } from '../(auth)/actions';
 import { AppMobileNav, AppSidebar } from '@/components/app/app-nav';
+import { ServiceWorkerManager } from '@/components/app/service-worker';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // Checked here for convenience, but every action and route handler below
@@ -31,6 +32,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main id="main" className="flex-1 pb-20 lg:pb-0">
           {children}
         </main>
+
+        <ServiceWorkerManager />
       </div>
     </div>
   );
