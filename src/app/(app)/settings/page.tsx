@@ -1,4 +1,4 @@
-import { CheckCircle2, Link2, ShieldAlert, ShieldCheck, Smartphone } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Link2, ShieldAlert, ShieldCheck, Smartphone } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { chainHead } from '@/lib/audit/chain';
 import { isMfaEnabled, remainingRecoveryCodes } from '@/lib/auth/mfa';
@@ -236,9 +236,10 @@ export default async function SettingsPage() {
               except the VIN lookups you trigger, which go to NHTSA.
             </p>
             <p className="flex items-start gap-2">
-              <CheckCircle2 className="mt-px size-3.5 shrink-0 text-ok" aria-hidden />
-              Personal data is sealed per subject, so an erasure request can destroy one
-              person&rsquo;s key without touching the bills of lading you are required to keep.
+              <AlertCircle className="mt-px size-3.5 shrink-0 text-warn" aria-hidden />
+              Per-subject encryption is not switched on yet, so personal data this instance holds
+              is stored in the clear and an erasure request cannot be satisfied by destroying one
+              person&rsquo;s key. Plan for that before you put real driver records in.
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
               <Badge tone="neutral" size="sm">

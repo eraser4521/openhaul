@@ -59,6 +59,10 @@ Roles are `owner`, `dispatcher`, `driver`, `accounting`. The capability matrix i
 | `esign_consents` | ESIGN consent with the disclosure stored by version and hash, so the exact text shown is reproducible years later |
 | `monitoring_consents` | Driver location-monitoring notice, same versioned pattern |
 
+> **Schema only.** None of these four tables has code behind it yet. `pii_vault` and
+> `subject_keys` are the design erasure will be built on, not a description of what the
+> application currently does — today the only encrypted field anywhere is the MFA secret.
+
 The separation exists so an erasure request can destroy one person's key while the bill of lading,
 its content hash and the audit chain stay intact and valid.
 

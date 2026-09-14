@@ -183,15 +183,17 @@ Full detail in [SECURITY.md](SECURITY.md). The parts worth knowing up front:
 3. A test that fails when a new table appears in neither the scoped registry nor a documented
    exemption list — because the real risk is the table somebody adds in six months and forgets.
 
-**Personal data is sealed per subject.** AES-256-GCM with HKDF-derived per-purpose subkeys, and
-additional authenticated data bound to `(key version, org, table, column, row)`. That last part
-matters: without it, anyone who can write one column could copy an encrypted licence number from
-one driver's row into another's and it would decrypt cleanly.
+**Field encryption is AES-256-GCM** with HKDF-derived per-purpose subkeys and additional
+authenticated data bound to `(key version, org, table, column, row)`. That last part matters:
+without it, anyone who can write one column could copy an encrypted licence number from one
+driver's row into another's and it would decrypt cleanly.
 
-It also means an **erasure request can destroy one person's key** without touching the bills of
-lading you are legally required to keep. The document's hash stays valid, the audit chain stays
-intact, and the personal data becomes unreadable — including in backups, which a `SET column = NULL`
-would never reach.
+> **Not yet wired to personal data.** The only field encrypted today is the MFA secret. The
+> per-subject key model erasure depends on — one data key per person, wrapped by the root and
+> destroyed to make that person's data unreadable everywhere, backups included — exists as
+> `subject_keys` and `pii_vault` in the schema with no code behind it. Until it does, personal
+> data this app collects is stored in the clear, and an erasure request cannot be satisfied by
+> destroying a key. Do not rely on this row of the compliance table yet.
 
 **The audit log is hash-chained.** Every entry commits to the hash of the one before it, with
 append-only triggers on top. Verification is one button in settings and names the exact entry where
