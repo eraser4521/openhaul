@@ -134,7 +134,7 @@ owner of a new organisation.
 ```bash
 npm run build       # production build
 npm start           # run the production build
-npm test            # 86 tests
+npm test            # 135 tests
 npm run typecheck   # tsc --noEmit
 npm run db:generate # regenerate migrations after a schema change
 ```
@@ -269,12 +269,20 @@ Further reading: [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [DATA_MODEL.md](docs
 
 ## Status
 
-Working today: VIN scanning and decode, loads and vehicles, organisations and roles, the security
-and audit foundations, and the marketing site.
+**Working today.** VIN scanning and decode. Loads and vehicles. Organisations and roles. The
+security and audit foundations. The full inspection flow: guided walk-around capture, on-device
+compression, AIAG damage coding, signature capture with stroke data, content hashing, and sealing.
+The offline queue behind it. The marketing site.
 
-Being built: the guided inspection capture flow, BOL and POD PDF generation, the offline sync
-queue, and invoicing. The schema and compliance groundwork for all of it is already in place —
-see [CONTRIBUTING.md](CONTRIBUTING.md) if you want to help.
+The inspection path is verified end to end against a running instance — a 2.2 MB photo compresses
+to roughly 300 KB on the device, uploads, and is stored as an immutable original plus a stripped
+derivative and a thumbnail. The signature's `document_sha256` matches the inspection's content hash
+exactly, so the signature provably commits to the record that was on screen. Once sealed, both the
+API and the database refuse to change it.
+
+**Not built yet.** BOL and POD PDF generation, invoicing beyond the schema, claims workflow,
+and FMCSA carrier lookup. The data model and compliance groundwork for all of it is in place — see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
