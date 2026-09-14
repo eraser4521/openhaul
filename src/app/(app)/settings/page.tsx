@@ -17,6 +17,8 @@ import { AccessorialCatalogue } from '@/components/app/accessorial-catalogue';
 import { allTemplates } from '@/lib/branding/template';
 import { listRates } from '@/lib/branding/accessorials';
 import { RetentionPanel } from '@/components/app/retention-panel';
+import { InsurancePanel } from '@/components/app/insurance-panel';
+import { listCertificates } from '@/lib/insurance/certificates';
 import { retentionReport } from '@/lib/retention/engine';
 import { activeHolds } from '@/lib/retention/holds';
 import { ANCHOR_LABEL } from '@/lib/retention/policy';
@@ -54,7 +56,18 @@ function hours(ms: number): string {
 export default async function SettingsPage() {
   const { session, db } = await requireSessionOrRedirect();
 
-  const [mfaEnabled, recoveryLeft, sessions, head, org, templates, rates, retention, holds] =
+  const [
+    mfaEnabled,
+    recoveryLeft,
+    sessions,
+    head,
+    org,
+    templates,
+    rates,
+    retention,
+    holds,
+    ownCover,
+  ] =
     await Promise.all([
       isMfaEnabled(session.userId),
       remainingRecoveryCodes(session.userId),
@@ -65,6 +78,7 @@ export default async function SettingsPage() {
       listRates(db, { includeRetired: true }),
       retentionReport(db),
       activeHolds(db),
+      listCertificates(db, null),
     ]);
 
   const policy = SESSION_POLICY[session.role];
@@ -139,6 +153,25 @@ export default async function SettingsPage() {
             defaultCents: rate.defaultCents,
             note: rate.note,
             active: rate.active,
+          }))}
+        />
+
+        <InsurancePanel
+          customerId={null}
+          title="Your insurance"
+          description="What a broker asks to see before tendering. Cargo cover for vehicles is not filed with FMCSA, so this certificate is the only proof of it there is."
+          canEdit={can(session.role, 'settings.write')}
+          certificates={ownCover.map((certificate) => ({
+            id: certificate.id,
+            kind: certificate.kind,
+            insurerName: certificate.insurerName,
+            policyNumber: certificate.policyNumber,
+            coverageLimitCents: certificate.coverageLimitCents,
+            deductibleCents: certificate.deductibleCents,
+            effectiveAt: certificate.effectiveAt.toISOString(),
+            expiresAt: certificate.expiresAt.toISOString(),
+            documentId: certificate.documentId,
+            verifiedAt: certificate.verifiedAt?.toISOString() ?? null,
           }))}
         />
 

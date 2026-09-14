@@ -36,10 +36,6 @@ the obvious model.
 want it settled — but nothing records the refund actually going out. That needs a payment-out
 alongside the payments-in already modelled.
 
-**Insurance certificates.** The lookup can say whether a filing exists; it cannot say anything
-about cargo cover for vehicles, which is never filed. An uploaded certificate with expiry tracking
-is the only thing that closes that gap.
-
 **Load import.** CSV and parsed dispatch sheets. This meets carriers where their loads already are
 without needing a load board of our own.
 

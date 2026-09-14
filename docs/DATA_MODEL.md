@@ -182,7 +182,7 @@ re-derived on every write rather than adjusted.
 | `audit_log` | Hash-chained, append-only. `prevHash` links each entry to the last |
 | `audit_anchors` | Periodic chain head export — a chain inside the database it protects proves little |
 | `claims` | Cargo claims with the 30/120/180/240-day deadlines as real dates |
-| `insurance_certificates` | Expiry tracking. Cargo cover for general freight is **not** filed with FMCSA, so an uploaded certificate is the only verification available |
+| `insurance_certificates` | Expiry tracking, for the carrier's own cover and a customer's. A null `customerId` means the carrier's own. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only verification available |
 | `carrier_checks` | Cached FMCSA authority lookups. The service has had extended outages, so nothing hard-fails on it |
 | `retention_policies` | Per record class, with an anchor type and a citation. Rows exist only where a carrier has overridden a default |
 | `legal_holds` | Suspends every retention and purge job for a subject. Several may sit on one subject at once |

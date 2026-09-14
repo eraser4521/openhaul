@@ -265,6 +265,8 @@ export const AUDIT = {
   claimStatusChanged: 'claim.status.changed',
 
   carrierChecked: 'carrier.checked',
+  insuranceRecorded: 'insurance.recorded',
+  insuranceVerified: 'insurance.verified',
 
   settingsChanged: 'settings.changed',
   templateChanged: 'document_template.changed',

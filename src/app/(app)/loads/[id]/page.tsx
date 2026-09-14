@@ -27,6 +27,8 @@ import { ClaimPanel } from '@/components/app/claim-panel';
 import { DriverAssign } from '@/components/app/driver-assign';
 import { can } from '@/lib/auth/capabilities';
 import { loadRetention } from '@/lib/retention/engine';
+import { loadCoverage } from '@/lib/insurance/certificates';
+import { CoverageWarning } from '@/components/app/coverage-warning';
 
 const STATUS_TONE: Record<LoadStatus, 'neutral' | 'brand' | 'ok' | 'warn' | 'info' | 'danger'> = {
   draft: 'neutral',
@@ -93,10 +95,11 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
     return (await db.selectOne('venues', eq(venuesTable.id, stop.venueId))) ?? null;
   };
 
-  const [pickupVenue, deliveryVenue, retention] = await Promise.all([
+  const [pickupVenue, deliveryVenue, retention, coverage] = await Promise.all([
     venueFor('pickup'),
     venueFor('delivery'),
     loadRetention(db, id),
+    loadCoverage(db, id),
   ]);
 
   const unverifiedVins = vehicles.filter((v) => v.vinCheckDigitValid === false);
@@ -142,6 +145,8 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
             </Badge>
           )}
         </div>
+
+        <CoverageWarning coverage={coverage} />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[

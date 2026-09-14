@@ -7,14 +7,30 @@ import { phone, relativeTime } from '@/lib/utils/format';
 import { CarrierLookup } from '@/components/app/carrier-lookup';
 import { checksByCustomer } from '@/lib/fmcsa/lookup';
 import { hasFmcsaKey } from '@/lib/fmcsa/qcmobile';
+import { InsurancePanel } from '@/components/app/insurance-panel';
+import { listCertificates } from '@/lib/insurance/certificates';
+import { can } from '@/lib/auth/capabilities';
 
 export const metadata = { title: 'Customers' };
 
 export default async function CustomersPage() {
-  const { db } = await requireSessionOrRedirect();
+  const { session, db } = await requireSessionOrRedirect();
 
   const [customers, checks] = await Promise.all([db.select('customers'), checksByCustomer(db)]);
   const configured = hasFmcsaKey();
+  const canEdit = can(session.role, 'customer.write');
+
+  /*
+   * One query per customer rather than one big one, because the scoped client
+   * filters by customer id and a carrier has tens of these, not thousands.
+   */
+  const covers = new Map(
+    await Promise.all(
+      customers.map(
+        async (customer) => [customer.id, await listCertificates(db, customer.id)] as const,
+      ),
+    ),
+  );
 
   return (
     <>
@@ -85,6 +101,29 @@ export default async function CustomersPage() {
                               : 'No USDOT or MC number on file to check.'}
                           </p>
                         )}
+                      </div>
+
+                      <div className="mt-3 border-t border-line pt-3">
+                        <InsurancePanel
+                          customerId={customer.id}
+                          framed={false}
+                          compact
+                          title="Insurance"
+                          description="What the lookup above cannot tell you. Cargo cover is never filed, so a certificate is the only evidence."
+                          canEdit={canEdit}
+                          certificates={(covers.get(customer.id) ?? []).map((certificate) => ({
+                            id: certificate.id,
+                            kind: certificate.kind,
+                            insurerName: certificate.insurerName,
+                            policyNumber: certificate.policyNumber,
+                            coverageLimitCents: certificate.coverageLimitCents,
+                            deductibleCents: certificate.deductibleCents,
+                            effectiveAt: certificate.effectiveAt.toISOString(),
+                            expiresAt: certificate.expiresAt.toISOString(),
+                            documentId: certificate.documentId,
+                            verifiedAt: certificate.verifiedAt?.toISOString() ?? null,
+                          }))}
+                        />
                       </div>
                     </Card>
                   </li>

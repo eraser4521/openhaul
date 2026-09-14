@@ -109,7 +109,7 @@ template does not reproduce the record that was actually agreed.
 | **Sending** | Over your own SMTP, with the attachment hash-checked first and every attempt recorded — and no claim that anything was delivered |
 | **Credits** | A reduction is a second document referencing the invoice, never an edit to the one already sent |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
-| **Insurance** | Certificate tracking with expiry alerts. Cargo cover for general freight is **not** filed with FMCSA, so an uploaded certificate is the only way to verify it |
+| **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Offline** | Inspections, photos and signatures captured on device and queued for upload |
 
 ---
@@ -386,6 +386,26 @@ receiving server is still trying, and calling that a bounce would have somebody 
 document that is about to arrive. The other half of the gap does not close: a message quietly
 dropped or filed as spam produces nothing to find.
 
+Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
+FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the
+certificate is the only evidence, for your own cover and for anyone you tender to. Certificates are
+recorded with the limit, the deductible and both dates, the PDF itself can be attached, and the
+dashboard says when one is about to lapse or already has. A lapsed certificate stays on the list
+rather than dropping off it, because a lapse nobody noticed is the worse one.
+
+The check worth having is against the load. A seven-car deck of new vehicles clears $350,000 without
+being remarkable, and $100,000 is the cargo limit brokers ask for and therefore the one most
+carriers buy — the difference is the carrier's, personally. So the load screen compares the declared
+values on the deck against the limit in force and says what the shortfall is. A vehicle with no
+declared value makes that **unknown** rather than fine: reporting full cover on the one load nobody
+valued is the failure that matters.
+
+What a certificate cannot do is said where it is shown. It records cover on the day it was issued
+and is not notice that the policy is still in force — cancellation is silent unless you are a named
+certificate holder. Marking one as checked records that a person opened the document and agreed with
+the figures, and editing those figures afterwards drops the mark, because a tick that survives a
+changed limit is a record of a check nobody performed.
+
 Templates are what make the paperwork yours. Upload a logo, pick a colour, write the standing
 notes you put on every job, and they appear on the bill of lading, the invoice, the settlement
 statement and the claim letters — set once as a house style, overridden per document where an
@@ -434,7 +454,7 @@ with every object behind them — the served copy, the thumbnail, and the origin
 EXIF and a GPS fix — and a file two records share is left alone.
 
 **Not built yet.** Nothing on the original list. What is missing now is smaller and specific: a
-payment-out to close a refund, and driver expense capture from the cab. See
+payment-out to close a refund, driver expense capture from the cab, and load import from CSV. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---

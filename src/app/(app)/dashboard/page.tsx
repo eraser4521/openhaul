@@ -12,6 +12,9 @@ import {
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { loads } from '@/lib/db/schema';
 import { PageBody, PageHeader } from '@/components/app/page-header';
+import { expiringCertificates } from '@/lib/insurance/certificates';
+import { KIND_LABEL } from '@/lib/insurance/status';
+import { ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -87,6 +90,7 @@ export default async function DashboardPage() {
   // open loads, which a car hauler will not.
   const openLoads = await db.select('loads', inArray(loads.status, OPEN_STATUSES));
   const allLoads = await db.select('loads');
+  const lapsing = await expiringCertificates(db);
 
   const delivered = allLoads.filter((l) => l.deliveredAt !== null);
   const revenueCents = delivered.reduce((sum, l) => sum + (l.rateCents ?? 0), 0);
@@ -119,6 +123,35 @@ export default async function DashboardPage() {
       />
 
       <PageBody className="space-y-6">
+        {lapsing.length > 0 && (
+          <Card className="border-warn/40 p-5">
+            <p className="flex items-start gap-2 text-sm font-medium text-warn">
+              <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+              {lapsing.filter((entry) => entry.state === 'expired').length > 0
+                ? 'Insurance has lapsed'
+                : 'Insurance is about to lapse'}
+            </p>
+            <ul className="mt-2 space-y-1 pl-6 text-xs leading-relaxed text-ink-secondary">
+              {lapsing.slice(0, 4).map((entry) => (
+                <li key={entry.id}>
+                  {KIND_LABEL[entry.kind]} with {entry.insurerName}
+                  {entry.customerId ? ' (customer)' : ''} —{' '}
+                  {entry.state === 'expired' ? 'expired' : 'expires'}{' '}
+                  {entry.expiresAt.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 pl-6 text-xs leading-relaxed text-ink-muted">
+              A broker will not tender to a carrier whose certificate has run out, and cargo cover
+              is not something the FMCSA lookup can confirm on your behalf.
+            </p>
+          </Card>
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat
             icon={Truck}
