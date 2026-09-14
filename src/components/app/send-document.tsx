@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { relativeTime } from '@/lib/utils/format';
+import { explainStatus } from '@/lib/email/dsn';
 
 /**
  * Emailing a document.
@@ -31,6 +32,11 @@ export interface SendRecord {
   status: string;
   error: string | null;
   attemptedAt: Date;
+  bouncedAt: Date | null;
+  bounceType: string | null;
+  bounceCode: string | null;
+  bounceRecipient: string | null;
+  bounceDiagnostic: string | null;
 }
 
 export interface SendDocumentProps {
@@ -94,6 +100,10 @@ export function SendDocument({
   };
 
   const lastSent = sends.find((send) => send.status === 'sent');
+  const bounced = sends.find((send) => send.status === 'bounced');
+  // A delay notice is worth showing but is not a failure: the receiving server
+  // is still trying, and calling it one would have somebody re-sending.
+  const delayed = sends.find((send) => send.bounceType === 'transient' && send.status !== 'bounced');
 
   return (
     <div className="space-y-3">
@@ -111,13 +121,41 @@ export function SendDocument({
           </Button>
         )}
 
-        {lastSent && (
+        {lastSent && !bounced && (
           <p className="text-xs text-ink-muted">
             Last handed to the mail server {relativeTime(lastSent.attemptedAt)} for{' '}
             {lastSent.to.join(', ')}
           </p>
         )}
       </div>
+
+      {bounced && (
+        <div className="rounded-lg bg-danger-soft px-3 py-2.5">
+          <p className="flex items-start gap-2 text-sm text-danger">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            This came back undelivered
+            {bounced.bounceRecipient ? ` from ${bounced.bounceRecipient}` : ''}
+            {bounced.bouncedAt ? `, ${relativeTime(bounced.bouncedAt)}` : ''}.
+          </p>
+          <p className="mt-1 pl-6 text-xs leading-relaxed text-ink-secondary">
+            {explainStatus(bounced.bounceCode, 'permanent')}
+            {bounced.bounceCode ? ` (${bounced.bounceCode})` : ''}
+          </p>
+          {bounced.bounceDiagnostic && (
+            <p className="mt-1 pl-6 font-mono text-[0.6875rem] break-words text-ink-muted">
+              {bounced.bounceDiagnostic}
+            </p>
+          )}
+        </div>
+      )}
+
+      {!bounced && delayed && (
+        <p className="flex items-start gap-2 rounded-lg bg-warn-soft px-3 py-2.5 text-xs leading-relaxed text-warn">
+          <Info className="mt-px size-3.5 shrink-0" aria-hidden />
+          Delivery is delayed{delayed.bounceCode ? ` (${delayed.bounceCode})` : ''}. The receiving
+          server is still trying — nothing to do yet.
+        </p>
+      )}
 
       {!configured && canSend && (
         <p className="flex items-start gap-2 rounded-lg bg-warn-soft px-3 py-2.5 text-xs leading-relaxed text-warn">
@@ -230,12 +268,27 @@ export function SendDocument({
           <ul className="mt-2 space-y-1.5 border-l border-line pl-3">
             {sends.map((send) => (
               <li key={send.id}>
-                <p className={send.status === 'sent' ? 'text-ink-secondary' : 'text-warn'}>
-                  {send.status === 'sent' ? 'Accepted' : 'Failed'} {relativeTime(send.attemptedAt)} ·{' '}
-                  {send.to.join(', ')}
+                <p
+                  className={
+                    send.status === 'sent'
+                      ? 'text-ink-secondary'
+                      : send.status === 'bounced'
+                        ? 'text-danger'
+                        : 'text-warn'
+                  }
+                >
+                  {send.status === 'sent'
+                    ? 'Accepted'
+                    : send.status === 'bounced'
+                      ? 'Bounced'
+                      : 'Failed'}{' '}
+                  {relativeTime(send.attemptedAt)} · {send.to.join(', ')}
                   {send.cc?.length ? ` (cc ${send.cc.join(', ')})` : ''}
                 </p>
                 {send.error && <p className="text-ink-muted">{send.error}</p>}
+                {send.bounceDiagnostic && (
+                  <p className="text-ink-muted">{send.bounceDiagnostic}</p>
+                )}
               </li>
             ))}
           </ul>

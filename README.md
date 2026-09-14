@@ -105,6 +105,7 @@ template does not reproduce the record that was actually agreed.
 | **Invoicing** | Built from the load, with broker rate and margin stored as structured fields and a one-click [49 CFR 371.3][371] transaction record |
 | **Claims** | Statutory deadlines as real dates — [30-day acknowledgement][370-5], [120-day disposition and 60-day status letters][370] — because most small carriers blow the first one |
 | **Settlements** | Per-load pay with the arithmetic shown, itemised chargebacks, and escrow accounted for across periods — the things [49 CFR 376.12][376] requires of a lease |
+| **Bounces** | Delivery notifications read back out of your mailbox and matched to the send, so a failure downstream stops reading as accepted |
 | **Sending** | Over your own SMTP, with the attachment hash-checked first and every attempt recorded — and no claim that anything was delivered |
 | **Credits** | A reduction is a second document referencing the invoice, never an edit to the one already sent |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
@@ -360,6 +361,15 @@ What it will not tell you is that anything arrived. A mail server accepting a me
 delivery and is certainly not proof of reading, so the app says only that the message was handed
 over, records every attempt with the hash of what was attached, and suggests you keep your own
 proof of sending where a date decides something. Nothing tracks opens.
+
+Returned mail closes half that gap. Point OpenHaul at the mailbox bounces come back to and it reads
+delivery status notifications out of it, matches each one to the send it belongs to — by the
+returned Message-ID, or by a token carried in the envelope sender for the servers that return
+nothing else — and marks the send as bounced with what the receiving server actually said, in plain
+English beside the code. A 4.x.x delay is recorded but deliberately not treated as a failure: the
+receiving server is still trying, and calling that a bounce would have somebody re-sending a
+document that is about to arrive. The other half of the gap does not close: a message quietly
+dropped or filed as spam produces nothing to find.
 
 **Not built yet.** Nothing on the original list. What is missing now is smaller and specific: a
 payment-out to close a refund, driver expense capture from the cab, and letterheaded document

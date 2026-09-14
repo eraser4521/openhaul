@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import { uuidv7 } from 'uuidv7';
 import {
   claims as claimsTable,
   creditNotes as creditNotesTable,
@@ -92,18 +93,28 @@ export async function sendDocument(
     contentType: document.contentType,
   };
 
+  /*
+   * The send row's id is minted before the message goes out so it can travel
+   * in the envelope sender. A bounce coming back days later then identifies
+   * this exact attempt even when the returning server kept none of the
+   * original headers.
+   */
+  const sendId = uuidv7();
+
   const outcome = await send({
     to: input.to,
     cc: input.cc,
     subject: input.subject.trim(),
     text: input.body,
     attachments: [attachment],
+    traceToken: sendId,
   });
 
   if (!outcome.ok) {
     const attempt = await recordAttempt(scoped, input, document.sha256, {
       status: 'failed',
       error: outcome.error,
+      id: sendId,
     });
     return { ok: false, error: outcome.error, sendId: attempt };
   }
@@ -111,6 +122,7 @@ export async function sendDocument(
   const attempt = await recordAttempt(scoped, input, document.sha256, {
     status: 'sent',
     messageId: outcome.messageId,
+    id: sendId,
   });
 
   return {
@@ -126,9 +138,10 @@ async function recordAttempt(
   scoped: ScopedDb,
   input: SendDocumentInput,
   documentSha256: string,
-  outcome: { status: 'sent' | 'failed'; messageId?: string; error?: string },
+  outcome: { status: 'sent' | 'failed'; messageId?: string; error?: string; id?: string },
 ): Promise<string | undefined> {
   const [row] = await scoped.insert('documentSends', {
+    ...(outcome.id ? { id: outcome.id } : {}),
     documentId: input.documentId,
     toAddresses: input.to,
     ccAddresses: input.cc?.length ? input.cc : null,

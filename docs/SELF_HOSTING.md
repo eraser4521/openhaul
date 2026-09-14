@@ -61,11 +61,38 @@ the encryption worth having.
 | `SMTP_USER`, `SMTP_PASSWORD` | if your server needs them | Omit for an unauthenticated relay |
 | `SMTP_SECURE` | rarely | Derived from the port; set only to override |
 | `SMTP_REPLY_TO` | no | Where replies should land, if not the from address |
+| `IMAP_HOST` | to read bounces | Without it, a send that failed downstream keeps reading as accepted |
+| `IMAP_PORT`, `IMAP_MAILBOX` | no | Default to 993 and INBOX |
+| `IMAP_USER`, `IMAP_PASSWORD` | no | Fall back to the SMTP credentials |
+| `SMTP_BOUNCE_ADDRESS` | recommended | A plus-addressable mailbox, so bounces can be traced to a send |
+| `BOUNCE_CHECK_TOKEN` | for unattended checks | Enables `POST /api/bounces/check`; the endpoint is off without it |
 | `FMCSA_WEB_KEY` | for carrier lookups | Free key from mobile.fmcsa.dot.gov; without it the lookup screen says so and stays off |
 | `NEXT_PUBLIC_APP_URL` | yes | Public origin, used in metadata |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | multi-instance only | See below |
 | `ALLOWED_ORIGINS` | behind a proxy | See below |
 | `HSTS_HEADER` | no | Defaults to `max-age=31536000` |
+
+---
+
+## Checking for bounces on a schedule
+
+There is no daemon and no queue here, so returned mail is found by polling.
+The Documents screen has a button; for unattended checks, set
+`BOUNCE_CHECK_TOKEN` and add a cron line:
+
+```
+*/15 * * * * curl -fsS -X POST -H "authorization: Bearer $BOUNCE_CHECK_TOKEN"   https://your-host/api/bounces/check
+```
+
+Running it more often is harmless — matching is idempotent, and messages are
+marked read rather than deleted, because it is your mailbox and not everything
+that lands in it is a bounce.
+
+**What this can and cannot tell you.** A delivery status notification is the
+only signal a plain SMTP setup produces, so this finds the failures that come
+back as one. A message quietly dropped, greylisted into oblivion, or filed as
+spam produces nothing to find. A send with no bounce against it is not proof
+anybody read it.
 
 ---
 

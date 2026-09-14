@@ -7,6 +7,8 @@ import { appendAudit, AUDIT } from '@/lib/audit/chain';
 import { draftFor, sendDocument, type SendDraft } from '@/lib/documents/send';
 import { looksLikeEmail, parseAddresses } from '@/lib/email/compose';
 import { verifyConnection } from '@/lib/email/transport';
+import { verifyInbox, inboxConfigured } from '@/lib/email/inbox';
+import { checkBounces, type BounceCheckResult } from '@/lib/documents/bounces';
 
 export interface SendActionResult {
   ok: boolean;
@@ -135,4 +137,78 @@ export async function verifyMailAction(): Promise<MailCheckResult> {
   return result.ok
     ? { ok: true, message: 'The mail server accepted the connection and the credentials.' }
     : { ok: false, message: result.error ?? 'The mail server could not be reached.' };
+}
+
+/* -------------------------------------------------------------------------
+ * Bounces
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Reads the bounce mailbox and updates whatever it can identify.
+ *
+ * A poll, because plain SMTP has no webhook to subscribe to. Safe to run as
+ * often as you like — matching is idempotent, so a message examined twice
+ * produces the same result.
+ */
+export async function checkBouncesAction(): Promise<BounceCheckResult> {
+  let context;
+  try {
+    context = await requireCapability('load.read');
+  } catch {
+    return {
+      ok: false,
+      error: 'Your role cannot check for bounces.',
+      examined: 0,
+      reports: 0,
+      matched: 0,
+      permanent: 0,
+      transient: 0,
+      unmatched: 0,
+    };
+  }
+
+  const { session, db } = context;
+  const result = await checkBounces(db);
+
+  // Only worth an audit entry when something actually came back; a check that
+  // found nothing is noise in a record somebody has to read.
+  if (result.ok && result.matched > 0) {
+    await appendAudit({
+      orgId: session.orgId,
+      actorId: session.userId,
+      actorRole: session.role,
+      action: AUDIT.bouncesChecked,
+      subject: `organization:${session.orgId}`,
+      detail: {
+        examined: result.examined,
+        matched: result.matched,
+        permanent: result.permanent,
+        transient: result.transient,
+      },
+    });
+  }
+
+  if (result.ok) revalidatePath('/documents');
+  return result;
+}
+
+export async function verifyInboxAction(): Promise<MailCheckResult> {
+  try {
+    await requireCapability('settings.write');
+  } catch {
+    return { ok: false, message: 'Only an owner can test the bounce mailbox.' };
+  }
+
+  if (!inboxConfigured()) {
+    return {
+      ok: false,
+      message: 'No bounce mailbox is configured. Set IMAP_HOST to check for bounces.',
+    };
+  }
+
+  const result = await verifyInbox();
+
+  return result.ok
+    ? { ok: true, message: 'The mailbox opened and the credentials were accepted.' }
+    : { ok: false, message: result.error ?? 'The mailbox could not be reached.' };
 }

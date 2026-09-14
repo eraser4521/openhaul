@@ -6,8 +6,10 @@ import { Card } from '@/components/ui/card';
 import { bytes, relativeTime } from '@/lib/utils/format';
 import { can } from '@/lib/auth/capabilities';
 import { SendDocument } from '@/components/app/send-document';
+import { BounceCheck } from '@/components/app/bounce-check';
 import { sendsFor } from '@/lib/documents/send';
 import { mailConfigured } from '@/lib/email/transport';
+import { inboxConfigured } from '@/lib/email/inbox';
 
 export const metadata = { title: 'Documents' };
 
@@ -32,7 +34,9 @@ export default async function DocumentsPage() {
         title="Documents"
         description="Every document this produces, stored as the exact bytes that were sealed — and sendable from here."
       />
-      <PageBody>
+      <PageBody className="space-y-4">
+        {canSend && <BounceCheck configured={inboxConfigured()} />}
+
         {documents.length === 0 ? (
           <EmptyState
             icon={FileText}
@@ -100,6 +104,11 @@ export default async function DocumentsPage() {
                         status: send.status,
                         error: send.error,
                         attemptedAt: send.attemptedAt,
+                        bouncedAt: send.bouncedAt,
+                        bounceType: send.bounceType,
+                        bounceCode: send.bounceCode,
+                        bounceRecipient: send.bounceRecipient,
+                        bounceDiagnostic: send.bounceDiagnostic,
                       }))}
                     />
                   </div>

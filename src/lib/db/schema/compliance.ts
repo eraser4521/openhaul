@@ -291,7 +291,13 @@ export const insuranceCertificates = sqliteTable(
  * `documentSha256` is copied here deliberately. It is the evidence that the
  * bytes attached to that email are the bytes still on disk under that id.
  */
-export const SEND_STATUSES = ['sent', 'failed'] as const;
+/**
+ * `failed` means the handoff itself did not happen — the mail server refused
+ * the message or could not be reached. `bounced` means it was accepted and
+ * then came back, which is a different fact and arrives later, from a mailbox
+ * rather than from the send.
+ */
+export const SEND_STATUSES = ['sent', 'failed', 'bounced'] as const;
 export type SendStatus = (typeof SEND_STATUSES)[number];
 
 export const documentSends = sqliteTable(
@@ -313,6 +319,23 @@ export const documentSends = sqliteTable(
 
     /** The document's hash at the moment it was attached. */
     documentSha256: text('document_sha256').notNull(),
+
+    /*
+     * What came back afterwards, if anything. A delivery status notification
+     * arrives minutes or days later addressed to the envelope sender, so none
+     * of this can be known at send time.
+     *
+     * `bounceType` separates the two that matter: a 5.x.x status is permanent
+     * and the message is never arriving, while a 4.x.x is the receiving server
+     * saying it is still trying. Treating a delay as a bounce would tell a
+     * dispatcher to re-send something that is about to be delivered.
+     */
+    bouncedAt: ts('bounced_at'),
+    bounceType: text('bounce_type', { enum: ['permanent', 'transient'] }),
+    /** The enhanced status code: 5.1.1, 4.4.7 and so on. */
+    bounceCode: text('bounce_code'),
+    bounceRecipient: text('bounce_recipient'),
+    bounceDiagnostic: text('bounce_diagnostic'),
 
     actorId: text('actor_id'),
     attemptedAt: ts('attempted_at').notNull(),

@@ -27,6 +27,8 @@ export interface MailConfig {
   pass?: string | undefined;
   from: string;
   replyTo?: string | undefined;
+  /** A mailbox that accepts plus-addressing, for bounces to come back to. */
+  bounceAddress?: string | undefined;
 }
 
 /**
@@ -58,7 +60,26 @@ export function mailConfig(): MailConfig | null {
     pass: process.env.SMTP_PASSWORD,
     from,
     replyTo: process.env.SMTP_REPLY_TO,
+    bounceAddress: process.env.SMTP_BOUNCE_ADDRESS,
   };
+}
+
+/**
+ * Builds a per-send envelope sender.
+ *
+ * Bounces come back to the envelope sender, not the From header, so encoding a
+ * token in it means a returned message identifies which send it belongs to
+ * even when the original headers did not survive the round trip — and plenty
+ * of servers return only a fragment. Requires the bounce address to be a real
+ * mailbox that accepts plus-addressing.
+ */
+export function verpAddress(bounceAddress: string | undefined, token: string): string | null {
+  if (!bounceAddress) return null;
+
+  const at = bounceAddress.lastIndexOf('@');
+  if (at <= 0) return null;
+
+  return `${bounceAddress.slice(0, at)}+${token}@${bounceAddress.slice(at + 1)}`;
 }
 
 export function mailConfigured(): boolean {
@@ -101,6 +122,11 @@ export interface SendRequest {
   /** Plain text only. No HTML, so nothing to inject and nothing to track. */
   text: string;
   attachments?: Attachment[];
+  /**
+   * Encoded into the envelope sender so a bounce can be traced back to this
+   * send. Ignored when no bounce address is configured.
+   */
+  traceToken?: string;
 }
 
 export type SendOutcome =
@@ -127,6 +153,10 @@ export async function send(request: SendRequest): Promise<SendOutcome> {
     return { ok: false, error: 'No recipient.' };
   }
 
+  const returnPath = request.traceToken
+    ? verpAddress(config.bounceAddress, request.traceToken)
+    : null;
+
   try {
     const info = await transporter(config).sendMail({
       from: config.from,
@@ -136,6 +166,14 @@ export async function send(request: SendRequest): Promise<SendOutcome> {
       subject: request.subject,
       text: request.text,
       attachments: request.attachments,
+      /*
+       * Overriding only the envelope. The recipient still sees the From
+       * address; the bounce address exists so the mail system has somewhere
+       * traceable to return a failure to.
+       */
+      ...(returnPath
+        ? { envelope: { from: returnPath, to: [...request.to, ...(request.cc ?? [])] } }
+        : {}),
     });
 
     const accepted = (info.accepted ?? []).map(String);
