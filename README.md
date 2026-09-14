@@ -104,6 +104,7 @@ template does not reproduce the record that was actually agreed.
 | **Dispatch** | Multi-stop runs across a 7–10 car deck, weight budget as well as slot count, inoperables flagged before the driver finds out on site |
 | **Invoicing** | Built from the load, with broker rate and margin stored as structured fields and a one-click [49 CFR 371.3][371] transaction record |
 | **Claims** | Statutory deadlines as real dates — [30-day acknowledgement][370-5], [120-day disposition and 60-day status letters][370] — because most small carriers blow the first one |
+| **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificate tracking with expiry alerts. Cargo cover for general freight is **not** filed with FMCSA, so an uploaded certificate is the only way to verify it |
 | **Offline** | Inspections, photos and signatures captured on device and queued for upload |
 
@@ -276,7 +277,8 @@ and roles. The security and audit foundations. The full inspection flow: guided 
 capture, on-device compression, AIAG damage coding, signature capture with stroke data, content
 hashing, and sealing. Bill of lading and delivery receipt generation. Invoicing, from raising an
 invoice off a delivered load through to recording payment. Cargo claims, from intake through to a
-written disposition. The offline queue behind it. The marketing site.
+written disposition. FMCSA carrier and broker lookups. The offline queue behind it. The marketing
+site.
 
 The inspection path is verified end to end against a running instance — a 2.2 MB photo compresses
 to roughly 300 KB on the device, uploads, and is stored as an immutable original plus a stripped
@@ -313,9 +315,18 @@ in, because a claim that sat in an inbox for a fortnight has already spent half 
 window. OpenHaul writes the three letters Part 370 requires and freezes each one; it does not send
 them, and it says so.
 
-**Not built yet.** FMCSA carrier lookup, driver settlements, and credit notes against a paid
-invoice. The data model and compliance groundwork for all three is in place — see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+The FMCSA lookup is the one place where being careful about what the data *cannot* say matters more
+than the lookup itself. Cargo insurance for general freight — which includes vehicles — is not filed
+with FMCSA at all, so "no cargo insurance on file" is the normal state of a fully insured car hauler
+and flagging it would condemn the entire industry. It is reported as a limit of the source instead,
+alongside the reminder that registration is not a credit check. What the check *does* answer is
+whether they may operate today, and, for a broker, whether the $75,000 surety bond that stands
+between you and an unpaid invoice is actually on file. Every result is stored, because "we checked
+their authority before we tendered" is a defence and remembering that somebody looked at a screen
+is not.
+
+**Not built yet.** Driver settlements and credit notes against a paid invoice. The data model and
+compliance groundwork for both is in place — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

@@ -56,6 +56,7 @@ the encryption worth having.
 | `OPENHAUL_KEYS` | **yes** | `v2:<base64>,v1:<base64>`, newest first |
 | `OPENHAUL_INDEX_KEY_VERSION` | yes | Pinned separately; rotating it requires re-indexing |
 | `PASSWORD_PEPPER` | recommended | Held outside the database |
+| `FMCSA_WEB_KEY` | for carrier lookups | Free key from mobile.fmcsa.dot.gov; without it the lookup screen says so and stays off |
 | `NEXT_PUBLIC_APP_URL` | yes | Public origin, used in metadata |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | multi-instance only | See below |
 | `ALLOWED_ORIGINS` | behind a proxy | See below |

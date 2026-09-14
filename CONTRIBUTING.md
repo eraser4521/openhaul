@@ -37,8 +37,9 @@ Once a payment exists the correct instrument is a credit, and there is nowhere t
 **Sending the letters.** OpenHaul writes the Part 370 letters and freezes them; a carrier still
 attaches and sends them by hand. Delivery, and proof of delivery, is the gap.
 
-**FMCSA carrier lookup.** USDOT and MC numbers, authority status and insurance on file, so a broker
-is not verifying a carrier by hand.
+**Insurance certificates.** The lookup can say whether a filing exists; it cannot say anything
+about cargo cover for vehicles, which is never filed. An uploaded certificate with expiry tracking
+is the only thing that closes that gap.
 
 **Load import.** CSV and parsed dispatch sheets. This meets carriers where their loads already are
 without needing a load board of our own.

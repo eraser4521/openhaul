@@ -256,6 +256,8 @@ export const AUDIT = {
   claimFiled: 'claim.filed',
   claimStatusChanged: 'claim.status.changed',
 
+  carrierChecked: 'carrier.checked',
+
   settingsChanged: 'settings.changed',
 
   piiDecrypted: 'pii.decrypted',
