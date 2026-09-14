@@ -42,13 +42,47 @@ export interface Fonts {
   mono: PDFFont;
 }
 
+/**
+ * The carrier's own layer of a document, resolved from their template.
+ *
+ * Deliberately narrow. Everything here sits around the document — above the
+ * masthead, in the rules, at the foot of the page, after the fixed terms.
+ * Nothing in it can remove or rewrite regulatory content, because a bill of
+ * lading whose terms the user can edit is not a bill of lading. Passing a
+ * brand through changes how a document looks; it never changes what it says.
+ */
+export interface DocumentBrand {
+  /** Printed above the masthead. Null prints no name, which a logo already carries. */
+  name: string | null;
+  tagline: string | null;
+  logo: {
+    bytes: Uint8Array;
+    contentType: string;
+    width: number;
+    height: number;
+  } | null;
+  /** Used as given for rules and bars. */
+  accent: RGB | null;
+  /** The same colour darkened far enough to survive a photocopier. */
+  accentText: RGB | null;
+  footerNote: string | null;
+  /** Extra terms, printed after the fixed ones under the carrier's own name. */
+  addendum: string | null;
+  remitToText: string | null;
+}
+
 export interface DocBuilderOptions {
   /** Rendered bottom-left of every page, beside the page number. */
   footerNote?: string;
   /** Document metadata. Defaults to the current time if omitted. */
   title?: string;
   issuedAt?: Date;
+  brand?: DocumentBrand | null;
 }
+
+/** Widest and tallest a logo may print. Wider than this and it reads as a banner. */
+const LOGO_MAX_WIDTH = 168;
+const LOGO_MAX_HEIGHT = 44;
 
 export class DocBuilder {
   private page!: PDFPage;
@@ -140,6 +174,22 @@ export class DocBuilder {
 
   get y(): number {
     return this.cursor;
+  }
+
+  /** The carrier's colour for rules and bars, or ink when they have not set one. */
+  get accent(): RGB {
+    return this.options.brand?.accent ?? INK;
+  }
+
+  /**
+   * The carrier's colour for text.
+   *
+   * Already darkened to clear 4.5:1 against white by the time it arrives here,
+   * so a pale brand colour prints as a readable version of itself rather than
+   * as a blank line on the fax a broker actually files.
+   */
+  get accentText(): RGB {
+    return this.options.brand?.accentText ?? INK;
   }
 
   /** Starts a new page when `needed` points will not fit. */
@@ -264,6 +314,108 @@ export class DocBuilder {
     this.cursor -= size + 4;
     this.rule();
     this.move(5);
+  }
+
+  /**
+   * The carrier's letterhead, above the masthead of the first page.
+   *
+   * A no-op when nothing is configured, so a carrier who has never opened the
+   * template settings gets exactly the document they got before — letterhead
+   * is an addition to these documents, not a new requirement of them.
+   *
+   * The address is deliberately absent. It is already printed below in the
+   * party block, where the regulation wants it and where a reader looks for
+   * it; repeating it here would only make the page busier without making it
+   * say anything more.
+   */
+  async letterhead(options: { text?: boolean; rule?: boolean } = {}): Promise<void> {
+    const brand = this.options.brand;
+    if (!brand) return;
+
+    const logo = brand.logo;
+    // A letter that already prints the carrier's name and address in full —
+    // the Part 370 claim letters do — takes the logo alone, because a second
+    // rendering of the same name directly above the first reads as a mistake.
+    const hasText = options.text !== false && Boolean(brand.name || brand.tagline);
+    if (!logo && !hasText) return;
+
+    const top = this.cursor;
+    let used = 0;
+
+    if (logo && logo.width > 0 && logo.height > 0) {
+      // Never enlarged: a small logo blown up to fill the box prints soft, and
+      // the carrier uploaded what they uploaded.
+      const scale = Math.min(LOGO_MAX_WIDTH / logo.width, LOGO_MAX_HEIGHT / logo.height, 1);
+      const width = logo.width * scale;
+      const height = logo.height * scale;
+
+      await this.image(logo.bytes, logo.contentType, {
+        x: MARGIN,
+        y: top - height,
+        width,
+        height,
+      });
+      used = height;
+    }
+
+    if (hasText) {
+      // Beside the logo when there is one, so the two read as a single block
+      // rather than stacking and pushing the document down a line.
+      const align = logo ? 'right' : 'left';
+      let textY = top;
+
+      if (brand.name) {
+        const size = 12;
+        const font = this.fonts.bold;
+        const x =
+          align === 'right'
+            ? PAGE_WIDTH - MARGIN - font.widthOfTextAtSize(brand.name, size)
+            : MARGIN;
+        this.draw(brand.name, { x, y: textY - size, size, font, color: this.accentText });
+        textY -= size + 3;
+      }
+
+      if (brand.tagline) {
+        const size = 7.5;
+        const font = this.fonts.regular;
+        for (const line of this.wrap(brand.tagline, size, CONTENT_WIDTH / 2, font)) {
+          const x =
+            align === 'right' ? PAGE_WIDTH - MARGIN - font.widthOfTextAtSize(line, size) : MARGIN;
+          this.draw(line, { x, y: textY - size, size, font, color: MUTED });
+          textY -= size + 2;
+        }
+      }
+
+      used = Math.max(used, top - textY);
+    }
+
+    this.cursor = top - used - 7;
+
+    if (options.rule === false) {
+      this.move(3);
+      return;
+    }
+
+    this.rule(this.accent, 1.2);
+    this.move(9);
+  }
+
+  /**
+   * The carrier's own terms, after the fixed ones.
+   *
+   * Appended under a heading naming whose they are, never merged into the
+   * regulatory text above. A shipper reading the page has to be able to tell
+   * which sentences are the law's and which are this carrier's, because the
+   * two are not enforceable on the same footing — and a carrier who could
+   * interleave them could quietly contradict a term they are not free to
+   * disclaim.
+   */
+  addendum(carrierName: string): void {
+    const text = this.options.brand?.addendum;
+    if (!text) return;
+
+    this.heading(`Additional terms — ${carrierName}`);
+    this.text(text, { size: 7.5, lineHeight: 10 });
   }
 
   rule(color = HAIRLINE, thickness = 0.6): void {
@@ -472,6 +624,10 @@ export class DocBuilder {
    */
   async finish(): Promise<Uint8Array> {
     const total = this.pages.length;
+    // The carrier's line wins where they set one — it is usually a remittance
+    // address or a dispatch number, which is more use at the foot of a page
+    // than the document number repeated from the masthead.
+    const footerNote = this.options.brand?.footerNote ?? this.options.footerNote;
 
     this.pages.forEach((page, index) => {
       page.setFont(this.fonts.regular);
@@ -484,8 +640,18 @@ export class DocBuilder {
         color: MUTED,
       });
 
-      if (this.options.footerNote) {
-        page.drawText(this.options.footerNote, {
+      if (footerNote) {
+        // Clipped rather than wrapped. The footer is one line by construction
+        // and the page number sits at the other end of it, so a carrier who
+        // pastes a paragraph in gets it cut short instead of printed over the
+        // numbering.
+        const room = CONTENT_WIDTH - this.fonts.regular.widthOfTextAtSize(label, 7) - 12;
+        let text = footerNote;
+        while (text.length > 1 && this.fonts.regular.widthOfTextAtSize(text, 7) > room) {
+          text = `${text.slice(0, -2)}…`;
+        }
+
+        page.drawText(text, {
           x: MARGIN,
           y: MARGIN - 10,
           size: 7,

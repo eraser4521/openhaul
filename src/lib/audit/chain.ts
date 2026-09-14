@@ -267,6 +267,7 @@ export const AUDIT = {
   carrierChecked: 'carrier.checked',
 
   settingsChanged: 'settings.changed',
+  templateChanged: 'document_template.changed',
 
   piiDecrypted: 'pii.decrypted',
   piiErased: 'pii.erased',

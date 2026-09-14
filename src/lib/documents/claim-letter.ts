@@ -1,4 +1,4 @@
-import { CONTENT_WIDTH, DocBuilder, MARGIN, MUTED } from './layout';
+import { CONTENT_WIDTH, DocBuilder, MARGIN, MUTED, type DocumentBrand } from './layout';
 import type { InvoiceParty } from './invoice';
 
 /**
@@ -44,6 +44,15 @@ export interface ClaimLetterInput {
   declineReason?: string | null;
   /** Set when the claim arrived after the nine-month window closed. */
   lateFiled?: boolean;
+
+  /**
+   * Logo and colour only.
+   *
+   * These letters say what Part 370 requires them to say and nothing else. A
+   * carrier's standing terms have no business inside a claim disposition, so
+   * the addendum is not printed here and the remittance block is not read.
+   */
+  brand?: DocumentBrand | null;
 }
 
 function moneyText(cents: number): string {
@@ -176,11 +185,16 @@ export async function renderClaimLetter(input: ClaimLetterInput): Promise<Uint8A
     footerNote: `${input.claimNumber} · ${input.carrier.name}`,
     title: claimLetterTitle(input.kind, input.claimNumber),
     issuedAt: input.issuedAt,
+    brand: input.brand,
   });
 
   /* --- Letterhead ------------------------------------------------------ */
 
-  doc.text(input.carrier.name, { size: 12, font: doc.fonts.bold });
+  // The name and address below are the letter's own, so the template
+  // contributes the logo and stops there.
+  await doc.letterhead({ text: false, rule: false });
+
+  doc.text(input.carrier.name, { size: 12, font: doc.fonts.bold, color: doc.accentText });
 
   const address = [
     input.carrier.addressLine1,
@@ -201,7 +215,7 @@ export async function renderClaimLetter(input: ClaimLetterInput): Promise<Uint8A
   if (authority) doc.text(authority, { size: 8, color: MUTED });
 
   doc.move(10);
-  doc.rule();
+  doc.rule(doc.accent, 1);
   doc.move(12);
 
   /* --- Date and addressee ---------------------------------------------- */

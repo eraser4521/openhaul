@@ -1,4 +1,12 @@
-import { CONTENT_WIDTH, DocBuilder, INK, MARGIN, MUTED, PANEL } from './layout';
+import {
+  CONTENT_WIDTH,
+  DocBuilder,
+  INK,
+  MARGIN,
+  MUTED,
+  PANEL,
+  type DocumentBrand,
+} from './layout';
 import type { InvoiceParty } from './invoice';
 import {
   ESCROW_RETURN_DAYS,
@@ -46,6 +54,9 @@ export interface SettlementInput {
 
   lines: SettlementLineOut[];
 
+  /** The carrier's letterhead, colour and standing notes. */
+  brand?: DocumentBrand | null;
+
   /** Running balance across every settlement, not just this one. */
   escrowBalanceCents: number;
   notes?: string | null;
@@ -82,6 +93,7 @@ export async function renderSettlement(input: SettlementInput): Promise<Uint8Arr
     footerNote: `${input.settlementNumber} · ${input.driverName}`,
     title: `Settlement ${input.settlementNumber}`,
     issuedAt: input.issuedAt,
+    brand: input.brand,
   });
 
   const leased = input.employmentType === 'owner_operator';
@@ -89,7 +101,9 @@ export async function renderSettlement(input: SettlementInput): Promise<Uint8Arr
 
   /* --- Masthead ------------------------------------------------------- */
 
-  doc.text('SETTLEMENT STATEMENT', { size: 15, font: doc.fonts.bold });
+  await doc.letterhead();
+
+  doc.text('SETTLEMENT STATEMENT', { size: 15, font: doc.fonts.bold, color: doc.accentText });
   doc.move(4);
 
   doc.columns(
@@ -253,6 +267,14 @@ export async function renderSettlement(input: SettlementInput): Promise<Uint8Arr
     doc.text(input.notes, { size: 9 });
     doc.move(8);
   }
+
+  /*
+   * After the lease disclosures, never among them. Those four numbered
+   * paragraphs are what 49 CFR 376.12 requires the carrier to say, and a
+   * carrier's own standing notes printed inside that list would read as
+   * carrying the same weight.
+   */
+  doc.addendum(input.carrier.name);
 
   doc.text(
     `Statement produced ${dateText(input.issuedAt)}. Keep it with your records.`,

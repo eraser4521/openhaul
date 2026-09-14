@@ -219,6 +219,70 @@ export async function processInspectionPhoto(bytes: Buffer): Promise<ProcessedIm
 }
 
 /**
+ * Long edge of a stored logo.
+ *
+ * A logo prints at most 168 points wide, which is 700 pixels at 300 dpi — the
+ * resolution a shipper's office laser printer actually uses. Anything beyond
+ * that is bytes embedded in every PDF the carrier ever sends for no visible
+ * difference on paper.
+ */
+const LOGO_LONG_EDGE = 720;
+
+/** 4 MB. A logo larger than this is a photograph somebody has mistaken for one. */
+const LOGO_MAX_BYTES = 4 * 1024 * 1024;
+
+export interface ProcessedLogo {
+  /** Always PNG. */
+  bytes: Buffer;
+  width: number;
+  height: number;
+}
+
+/**
+ * Normalises an uploaded logo.
+ *
+ * Always converted to PNG, for two reasons that happen to agree. The PDF
+ * writer embeds PNG and JPEG and nothing else, so a WebP upload would
+ * otherwise be rejected at render time rather than at upload time, which is
+ * far too late to tell someone. And a logo with a transparent ground has to
+ * stay PNG to keep it — re-encoded to JPEG it acquires a black rectangle,
+ * which is exactly what the carrier will notice on the first bill of lading
+ * they print and not before.
+ *
+ * Re-encoding is also the same security control it is for photos: whatever was
+ * hiding in the container does not survive a decode and re-encode.
+ */
+export async function processLogo(bytes: Buffer): Promise<ProcessedLogo> {
+  if (bytes.byteLength === 0) throw new ImageRejected('The file is empty.');
+  if (bytes.byteLength > LOGO_MAX_BYTES) {
+    throw new ImageRejected('That image is too large for a logo. Keep it under 4 MB.');
+  }
+
+  sniffImageType(bytes);
+
+  let metadata;
+  try {
+    metadata = await sharp(bytes).metadata();
+  } catch {
+    throw new ImageRejected('That file is not a readable image.');
+  }
+
+  const pixels = (metadata.width ?? 0) * (metadata.height ?? 0);
+  if (pixels === 0) throw new ImageRejected('That image has no dimensions.');
+  if (pixels > 80_000_000) throw new ImageRejected('That image has an implausible resolution.');
+
+  const output = await sharp(bytes)
+    .rotate()
+    .resize(LOGO_LONG_EDGE, LOGO_LONG_EDGE, { fit: 'inside', withoutEnlargement: true })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+
+  const final = await sharp(output).metadata();
+
+  return { bytes: output, width: final.width ?? 0, height: final.height ?? 0 };
+}
+
+/**
  * Great-circle distance in metres.
  *
  * Used to decide whether a photo was taken at the stop. Carrier scorecards on

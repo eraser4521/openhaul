@@ -1,4 +1,12 @@
-import { CONTENT_WIDTH, DocBuilder, INK, MARGIN, MUTED, PANEL } from './layout';
+import {
+  CONTENT_WIDTH,
+  DocBuilder,
+  INK,
+  MARGIN,
+  MUTED,
+  PANEL,
+  type DocumentBrand,
+} from './layout';
 import type { InvoiceParty } from './invoice';
 import type { CreditReason } from '../db/schema';
 import { CREDIT_REASON_LABEL } from '../invoices/display';
@@ -37,6 +45,15 @@ export interface CreditNoteInput {
 
   /** The cargo claim this settles, when it came off the freight bill. */
   claimNumber?: string | null;
+
+  /**
+   * Letterhead and remittance only.
+   *
+   * No addendum: a credit note corrects an invoice that already carried the
+   * carrier's terms, and restating them on the correction invites an argument
+   * about which document they attach to.
+   */
+  brand?: DocumentBrand | null;
 }
 
 function moneyText(cents: number, currency = 'USD'): string {
@@ -72,6 +89,7 @@ export async function renderCreditNote(input: CreditNoteInput): Promise<Uint8Arr
     footerNote: `${input.creditNumber} · credit against ${input.invoiceNumber}`,
     title: `Credit note ${input.creditNumber}`,
     issuedAt: input.issuedAt,
+    brand: input.brand,
   });
 
   const currency = input.currency || 'USD';
@@ -81,7 +99,9 @@ export async function renderCreditNote(input: CreditNoteInput): Promise<Uint8Arr
 
   /* --- Masthead ------------------------------------------------------- */
 
-  doc.text('CREDIT NOTE', { size: 15, font: doc.fonts.bold });
+  await doc.letterhead();
+
+  doc.text('CREDIT NOTE', { size: 15, font: doc.fonts.bold, color: doc.accentText });
 
   /*
    * Said plainly and immediately. A credit note mistaken for an invoice gets
@@ -99,7 +119,7 @@ export async function renderCreditNote(input: CreditNoteInput): Promise<Uint8Arr
   doc.columns(
     (column) => {
       doc.field('From', input.carrier.name, column);
-      const address = addressBlock(input.carrier);
+      const address = input.brand?.remitToText?.trim() || addressBlock(input.carrier);
       if (address) doc.text(address, { ...column, size: 8, color: MUTED });
     },
     (column) => {

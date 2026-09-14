@@ -29,7 +29,9 @@ import { can } from '@/lib/auth/capabilities';
 import { InvoiceDraftForm } from '@/components/app/invoice-draft-form';
 import { PaymentForm, VoidInvoice } from '@/components/app/payment-form';
 import { CreditNotes } from '@/components/app/credit-notes';
+import { InvoiceAccessorials } from '@/components/app/invoice-accessorials';
 import { checkCreditable, creditsFor } from '@/lib/invoices/credits';
+import { accessorialsFor, listRates } from '@/lib/branding/accessorials';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,15 +61,20 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const invoice = await db.selectOne('invoices', eq(invoicesTable.id, id));
   if (!invoice) notFound();
 
-  const [customer, load, paymentRows, creditRows, creditGate] = await Promise.all([
-    invoice.customerId
-      ? db.selectOne('customers', eq(customersTable.id, invoice.customerId))
-      : Promise.resolve(null),
-    invoice.loadId ? db.selectOne('loads', eq(loadsTable.id, invoice.loadId)) : Promise.resolve(null),
-    db.select('payments', eq(paymentsTable.invoiceId, id)),
-    creditsFor(db, id),
-    checkCreditable(db, id),
-  ]);
+  const [customer, load, paymentRows, creditRows, creditGate, accessorials, catalogue] =
+    await Promise.all([
+      invoice.customerId
+        ? db.selectOne('customers', eq(customersTable.id, invoice.customerId))
+        : Promise.resolve(null),
+      invoice.loadId
+        ? db.selectOne('loads', eq(loadsTable.id, invoice.loadId))
+        : Promise.resolve(null),
+      db.select('payments', eq(paymentsTable.invoiceId, id)),
+      creditsFor(db, id),
+      checkCreditable(db, id),
+      accessorialsFor(db, id),
+      listRates(db),
+    ]);
 
   // Claims on the same load, so a credit can name the one it settles.
   const loadClaims = invoice.loadId
@@ -186,6 +193,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               notes: invoice.notes,
             }}
             basisNote={`${BILLING_BASIS_LABEL[basis]}. Check it against the rate confirmation before issuing.`}
+            accessorialsItemised={accessorials.length > 0}
           />
         ) : (
           <Card>
@@ -210,7 +218,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               {(charges.codCollectedCents !== 0 || charges.depositCents !== 0) && (
                 <div className="flex justify-between px-5 py-3">
                   <dt className="font-medium text-ink">Subtotal</dt>
-                  <dd className="font-medium text-ink tabular-nums">{money(grossCents(charges))}</dd>
+                  <dd className="font-medium text-ink tabular-nums">
+                    {money(grossCents(charges))}
+                  </dd>
                 </div>
               )}
 
@@ -250,6 +260,21 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             )}
           </Card>
         )}
+
+        <InvoiceAccessorials
+          invoiceId={invoice.id}
+          lines={accessorials}
+          catalogue={catalogue.map((rate) => ({
+            id: rate.id,
+            code: rate.code,
+            label: rate.label,
+            unit: rate.unit,
+            defaultCents: rate.defaultCents,
+            note: rate.note,
+          }))}
+          editable={isDraft && canWrite}
+          totalCents={invoice.accessorialCents}
+        />
 
         {!isDraft && invoice.status !== 'void' && (
           <section className="space-y-4">

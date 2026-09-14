@@ -146,10 +146,18 @@ the procedure linking the signature to the person; every field here exists to an
 | `payments` | Partial payments against an invoice |
 | `expenses` | Fuel, tolls, car-pulling, with a receipt photo |
 | `settlements` | Driver pay: revenue minus broker fees, times the pay rate |
+| `accessorial_rates` | The carrier's own named charges, with a rate and the unit it is counted in |
+| `invoice_accessorials` | One itemised charge on one invoice, holding its own copy of the label and rate |
 
 `invoices.factoringNoticeText` exists because a factoring company requires a Notice of Assignment
 on the invoice face. Without it the broker pays the carrier and the factor comes after the carrier
 for the money.
+
+`invoice_accessorials` copies rather than references. A line takes its label, unit and rate out of
+`accessorial_rates` at the moment it is added, so editing the catalogue never reaches an invoice
+that already cites it — the customer is holding a document stating a figure, and a rate rise in
+June cannot change what was charged in March. `invoices.accessorialCents` is the sum of the lines,
+re-derived on every write rather than adjusted.
 
 ---
 
@@ -158,6 +166,7 @@ for the money.
 | Table | Notes |
 |---|---|
 | `documents` | Frozen PDF bytes with a SHA-256. Superseded, never edited |
+| `document_templates` | The carrier-owned layer of a document: letterhead, colour, footer, extra terms |
 | `audit_log` | Hash-chained, append-only. `prevHash` links each entry to the last |
 | `audit_anchors` | Periodic chain head export — a chain inside the database it protects proves little |
 | `claims` | Cargo claims with the 30/120/180/240-day deadlines as real dates |

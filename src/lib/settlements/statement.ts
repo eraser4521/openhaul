@@ -10,6 +10,7 @@ import type { ScopedDb } from '../db/scope';
 import { getOrganization } from '../organization/profile';
 import { storeDocument } from '../documents/store';
 import { renderSettlement, type SettlementLineOut } from '../documents/settlement';
+import { brandFor } from '../branding/template';
 import { describeBasis, payBasisFor, paymentDueBy } from './compute';
 import { driverEscrowBalance } from './lifecycle';
 
@@ -93,6 +94,7 @@ export async function buildStatement(
   const number = statementNumber(driver.displayName, settlement.periodEnd);
 
   const bytes = await renderSettlement({
+    brand: await brandFor(scoped, 'settlement'),
     settlementNumber: number,
     issuedAt: settlement.finalizedAt,
     periodStart: settlement.periodStart,

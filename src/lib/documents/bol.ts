@@ -9,6 +9,7 @@ import {
   MARGIN,
   MUTED,
   WARNING,
+  type DocumentBrand,
   type TableColumn,
 } from './layout';
 
@@ -125,6 +126,16 @@ export interface BolInput {
    * computed from the finished bytes and stored against the row.
    */
   inspectionContentHash?: string | null;
+
+  /**
+   * The carrier's letterhead, colour and standing notes.
+   *
+   * Absent on an instance nobody has customised, and when absent the document
+   * renders exactly as it did before templates existed. Nothing reachable
+   * through it touches the terms, the non-negotiable declaration or the
+   * regulatory party blocks below.
+   */
+  brand?: DocumentBrand | null;
 }
 
 /* -------------------------------------------------------------------------
@@ -268,13 +279,17 @@ export async function renderBol(input: BolInput): Promise<Uint8Array> {
     footerNote: `${input.documentNumber} · ${input.carrier.legalName}`,
     title: `${isPod ? 'Delivery receipt' : 'Bill of lading'} ${input.documentNumber}`,
     issuedAt: input.issuedAt,
+    brand: input.brand,
   });
 
   /* --- Masthead ------------------------------------------------------- */
 
+  await doc.letterhead();
+
   doc.text(isPod ? 'DELIVERY RECEIPT — PROOF OF DELIVERY' : 'BILL OF LADING', {
     size: 15,
     font: doc.fonts.bold,
+    color: doc.accentText,
   });
 
   /*
@@ -332,7 +347,7 @@ export async function renderBol(input: BolInput): Promise<Uint8Array> {
   );
 
   doc.move(4);
-  doc.rule(INK, 1);
+  doc.rule(doc.accent, 1);
   doc.move(8);
 
   /* --- Parties: 49 CFR 373.101(1) and (2) ------------------------------ */
@@ -552,6 +567,10 @@ export async function renderBol(input: BolInput): Promise<Uint8Array> {
 
   doc.heading('Terms and conditions');
   doc.text(termsText(input.kind), { size: 7, color: INK, lineHeight: 9.5 });
+
+  // The carrier's own terms follow the fixed ones under their own name, so a
+  // shipper can see where the regulation stops and this carrier begins.
+  doc.addendum(input.carrier.legalName);
 
   /* --- Signatures ------------------------------------------------------ */
 

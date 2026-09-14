@@ -11,6 +11,7 @@ import type { ScopedDb } from '../db/scope';
 import { getOrganization } from '../organization/profile';
 import { storeDocument } from '../documents/store';
 import { renderCreditNote } from '../documents/credit-note';
+import { brandFor } from '../branding/template';
 import { sumCredits } from './credits';
 
 /**
@@ -55,6 +56,7 @@ export async function buildCreditDocument(
   const bytes = await renderCreditNote({
     creditNumber: note.number,
     issuedAt: note.issuedAt ?? note.createdAt,
+    brand: await brandFor(scoped, 'credit_note'),
 
     carrier: {
       name: org.legalName,

@@ -371,9 +371,30 @@ receiving server is still trying, and calling that a bounce would have somebody 
 document that is about to arrive. The other half of the gap does not close: a message quietly
 dropped or filed as spam produces nothing to find.
 
+Templates are what make the paperwork yours. Upload a logo, pick a colour, write the standing
+notes you put on every job, and they appear on the bill of lading, the invoice, the settlement
+statement and the claim letters — set once as a house style, overridden per document where an
+invoice needs a remittance line a bill of lading does not. What a template cannot do is the point
+of it: there is no field that reaches the terms on a bill of lading, the non-negotiable declaration
+on its face, or what a Part 370 claim letter says. Your own terms print after the fixed ones under
+a heading naming you, so a shipper reading the page can tell which sentences are the regulation's
+and which are yours. A pale brand colour is darkened where it is set as text, because a bill of
+lading gets photocopied and faxed and a colour that vanishes on the copy is worse than no colour at
+all. A specimen of any document renders from whatever is currently in the form — saved or not —
+through the same code the real one uses, so you can try six colours against a bill of lading before
+committing to one. And because a document is frozen when it is issued, changing your logo in March
+does not put it on a bill of lading signed in February.
+
+The same screen holds your accessorial charges, with a name, a rate and the unit each is counted
+in. Picked from that list on an invoice, they print itemised with the arithmetic beside them:
+"Detention at pickup — 3.5 hrs at $75.00" gets paid, "Accessorials $262.50" gets a phone call. A
+line copies its label and rate at the moment it is added, so raising your detention rate next month
+does not rewrite what you charged last month, and the invoice's accessorial figure is always the
+sum of its lines rather than a number typed beside them.
+
 **Not built yet.** Nothing on the original list. What is missing now is smaller and specific: a
-payment-out to close a refund, driver expense capture from the cab, and letterheaded document
-templates. See [CONTRIBUTING.md](CONTRIBUTING.md).
+payment-out to close a refund, and driver expense capture from the cab. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

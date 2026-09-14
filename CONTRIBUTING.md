@@ -43,10 +43,6 @@ is the only thing that closes that gap.
 **Load import.** CSV and parsed dispatch sheets. This meets carriers where their loads already are
 without needing a load board of our own.
 
-**Document templates.** The bill of lading renders from a fixed layout. Carriers want their own
-letterhead and their own accessorial lines without forking the regulatory content, which has to
-stay where it is.
-
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.
 

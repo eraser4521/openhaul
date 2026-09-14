@@ -6,7 +6,14 @@ import {
   MUTED,
   PANEL,
   WARNING,
+  type DocumentBrand,
 } from './layout';
+import {
+  basisText,
+  extendedCents,
+  sumAccessorials,
+  type AccessorialLine,
+} from '../branding/accessorial-math';
 import { grossCents, type Charges } from '../invoices/compute';
 import { termsDefinition } from '../invoices/terms';
 import type { PaymentTerms } from '../db/schema';
@@ -71,6 +78,15 @@ export interface InvoiceInput {
   billTo: InvoiceParty;
 
   charges: Charges;
+  /**
+   * The itemised accessorials behind `charges.accessorialCents`.
+   *
+   * Empty on an invoice raised before the carrier had a catalogue, or on one
+   * where the accessorial was typed as a single figure. Either way the total
+   * is what governs: anything the lines do not account for still prints, as a
+   * remainder, so the charges block always adds up to the figure claimed.
+   */
+  accessorials: AccessorialLine[];
   paidCents: number;
   currency: string;
 
@@ -87,6 +103,9 @@ export interface InvoiceInput {
   factoringNoticeText?: string | null;
   notes?: string | null;
   purchaseOrderNumber?: string | null;
+
+  /** The carrier's letterhead, colour, remittance block and standing notes. */
+  brand?: DocumentBrand | null;
 }
 
 function moneyText(cents: number, currency = 'USD'): string {
@@ -139,6 +158,7 @@ export async function renderInvoice(input: InvoiceInput): Promise<Uint8Array> {
     footerNote: `${input.invoiceNumber} · ${input.carrier.name}`,
     title: `Invoice ${input.invoiceNumber}`,
     issuedAt: input.issuedAt,
+    brand: input.brand,
   });
 
   const currency = input.currency || 'USD';
@@ -146,13 +166,23 @@ export async function renderInvoice(input: InvoiceInput): Promise<Uint8Array> {
 
   /* --- Masthead ------------------------------------------------------- */
 
-  doc.text('INVOICE', { size: 15, font: doc.fonts.bold });
+  await doc.letterhead();
+
+  doc.text('INVOICE', { size: 15, font: doc.fonts.bold, color: doc.accentText });
   doc.move(4);
 
   doc.columns(
     (column) => {
       doc.field('Remit to', input.carrier.name, column);
-      const address = addressBlock(input.carrier);
+
+      /*
+       * A remittance block set on the template replaces the office address,
+       * because a lockbox is frequently not where the carrier sits and a
+       * cheque sent to the wrong one takes a fortnight to come back. The name
+       * and the authority numbers are not replaceable: they are what identify
+       * the motor carrier claiming the money.
+       */
+      const address = input.brand?.remitToText?.trim() || addressBlock(input.carrier);
       if (address) doc.text(address, { ...column, size: 8, color: MUTED });
 
       const authority = [
@@ -240,9 +270,35 @@ export async function renderInvoice(input: InvoiceInput): Promise<Uint8Array> {
     // invites a short payment while somebody works out the split.
     lines.push(['Fuel surcharge', input.charges.fuelSurchargeCents]);
   }
-  if (input.charges.accessorialCents !== 0) {
-    lines.push(['Accessorial charges', input.charges.accessorialCents]);
+  /*
+   * Itemised accessorials, each showing its own working. A broker's accounts
+   * department disputes "Accessorials $262.50" and pays "Detention - 3.5 hrs
+   * at $75.00", so the arithmetic goes on the face of the invoice rather than
+   * in the email that follows the query.
+   */
+  for (const accessorial of input.accessorials) {
+    const basis = basisText(accessorial);
+    const heading = [
+      accessorial.code ? `${accessorial.code} · ${accessorial.label}` : accessorial.label,
+      basis,
+    ]
+      .filter(Boolean)
+      .join(' — ');
+
+    lines.push([
+      accessorial.note ? `${heading}\n${accessorial.note}` : heading,
+      extendedCents(accessorial),
+    ]);
   }
+
+  /*
+   * Whatever the lines do not account for. Zero once an invoice is fully
+   * itemised; the whole accessorial figure on one raised before the carrier
+   * had a catalogue.
+   */
+  const unitemised = input.charges.accessorialCents - sumAccessorials(input.accessorials);
+  if (unitemised !== 0) lines.push(['Accessorial charges', unitemised]);
+
   if (input.charges.taxCents !== 0) lines.push(['Tax', input.charges.taxCents]);
 
   doc.table(
@@ -386,6 +442,8 @@ export async function renderInvoice(input: InvoiceInput): Promise<Uint8Array> {
     doc.text(input.notes, { size: 9 });
     doc.move(10);
   }
+
+  doc.addendum(input.carrier.name);
 
   doc.text(
     balance > 0

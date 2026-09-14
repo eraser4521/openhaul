@@ -12,7 +12,33 @@ import { MailCheck } from '@/components/app/mail-check';
 import { mailConfigured } from '@/lib/email/transport';
 import { can } from '@/lib/auth/capabilities';
 import { getOrganization } from '@/lib/organization/profile';
+import { TemplateEditor, type TemplateValues } from '@/components/app/template-editor';
+import { AccessorialCatalogue } from '@/components/app/accessorial-catalogue';
+import { allTemplates } from '@/lib/branding/template';
+import { listRates } from '@/lib/branding/accessorials';
+import type { TemplateScope } from '@/lib/db/schema';
 import { VerifyChainButton } from './verify-chain';
+
+/** The editable half of a stored template row. */
+function templateValues(row: {
+  letterheadName: string | null;
+  tagline: string | null;
+  accentHex: string | null;
+  showLogo: boolean | null;
+  footerNote: string | null;
+  addendum: string | null;
+  remitToText: string | null;
+}): TemplateValues {
+  return {
+    letterheadName: row.letterheadName,
+    tagline: row.tagline,
+    accentHex: row.accentHex,
+    showLogo: row.showLogo,
+    footerNote: row.footerNote,
+    addendum: row.addendum,
+    remitToText: row.remitToText,
+  };
+}
 
 export const metadata = { title: 'Settings' };
 
@@ -22,17 +48,25 @@ function hours(ms: number): string {
 }
 
 export default async function SettingsPage() {
-  const { session } = await requireSessionOrRedirect();
+  const { session, db } = await requireSessionOrRedirect();
 
-  const [mfaEnabled, recoveryLeft, sessions, head, org] = await Promise.all([
+  const [mfaEnabled, recoveryLeft, sessions, head, org, templates, rates] = await Promise.all([
     isMfaEnabled(session.userId),
     remainingRecoveryCodes(session.userId),
     listSessions(session.userId),
     chainHead(),
     getOrganization(session.orgId),
+    allTemplates(db),
+    listRates(db, { includeRetired: true }),
   ]);
 
   const policy = SESSION_POLICY[session.role];
+
+  const house = templates.find((row) => row.scope === 'all') ?? null;
+  const overrides: Partial<Record<TemplateScope, TemplateValues>> = {};
+  for (const row of templates) {
+    if (row.scope !== 'all') overrides[row.scope] = templateValues(row);
+  }
 
   return (
     <>
@@ -57,6 +91,49 @@ export default async function SettingsPage() {
             }}
           />
         )}
+
+        {org && (
+          <TemplateEditor
+            canEdit={can(session.role, 'settings.write')}
+            legalName={org.legalName}
+            house={
+              house
+                ? templateValues(house)
+                : {
+                    letterheadName: null,
+                    tagline: null,
+                    accentHex: null,
+                    showLogo: null,
+                    footerNote: null,
+                    addendum: null,
+                    remitToText: null,
+                  }
+            }
+            overrides={overrides}
+            logo={
+              house?.logoSha256
+                ? {
+                    width: house.logoWidth ?? 0,
+                    height: house.logoHeight ?? 0,
+                    sha256: house.logoSha256,
+                  }
+                : null
+            }
+          />
+        )}
+
+        <AccessorialCatalogue
+          canEdit={can(session.role, 'settings.write')}
+          entries={rates.map((rate) => ({
+            id: rate.id,
+            code: rate.code,
+            label: rate.label,
+            unit: rate.unit,
+            defaultCents: rate.defaultCents,
+            note: rate.note,
+            active: rate.active,
+          }))}
+        />
 
         <MailCheck configured={mailConfigured()} />
 
@@ -141,9 +218,9 @@ export default async function SettingsPage() {
             <VerifyChainButton />
 
             <p className="flex items-start gap-1.5 text-xs leading-relaxed text-ink-muted">
-              <Link2 className="mt-px size-3.5 shrink-0" aria-hidden />
-              A chain that only exists inside the database it protects proves little. Export the
-              head hash somewhere you do not control if you need it to stand up later.
+              <Link2 className="mt-px size-3.5 shrink-0" aria-hidden />A chain that only exists
+              inside the database it protects proves little. Export the head hash somewhere you do
+              not control if you need it to stand up later.
             </p>
           </div>
         </Card>
@@ -160,8 +237,8 @@ export default async function SettingsPage() {
             </p>
             <p className="flex items-start gap-2">
               <CheckCircle2 className="mt-px size-3.5 shrink-0 text-ok" aria-hidden />
-              Personal data is sealed per subject, so an erasure request can destroy one person&rsquo;s
-              key without touching the bills of lading you are required to keep.
+              Personal data is sealed per subject, so an erasure request can destroy one
+              person&rsquo;s key without touching the bills of lading you are required to keep.
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
               <Badge tone="neutral" size="sm">

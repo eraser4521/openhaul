@@ -12,6 +12,7 @@ import {
 } from '../db/schema';
 import type { ScopedDb } from '../db/scope';
 import { getOrganization } from '../organization/profile';
+import { brandFor } from '../branding/template';
 import { blobStore } from '../storage/blob-store';
 import { signaturesFor } from '../inspections/finalize';
 import { storeDocument } from './store';
@@ -252,6 +253,7 @@ export async function buildDocumentInput(
     instructions: load.instructions,
     signatures,
     inspectionContentHash,
+    brand: await brandFor(scoped, kind),
   };
 
   return { input, inspectionIds };

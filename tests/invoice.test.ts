@@ -417,6 +417,7 @@ function invoiceInput(overrides: Partial<InvoiceInput> = {}): InvoiceInput {
     issuedAt: new Date('2026-09-14T12:00:00Z'),
     dueAt: new Date('2026-10-14T12:00:00Z'),
     terms: '30_days',
+    accessorials: [],
     carrier: {
       name: 'Ridgeline Auto Transport LLC',
       addressLine1: '4400 Meacham Blvd',

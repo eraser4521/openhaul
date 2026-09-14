@@ -14,6 +14,7 @@ import {
 import type { ScopedDb } from '../db/scope';
 import { getOrganization } from '../organization/profile';
 import { storeDocument } from '../documents/store';
+import { brandFor } from '../branding/template';
 import {
   claimLetterTitle,
   renderClaimLetter,
@@ -302,12 +303,20 @@ async function sendLetter(
       : Promise.resolve(null),
   ]);
 
+  const kindColumn =
+    options.kind === 'acknowledgement'
+      ? 'claim_acknowledgement'
+      : options.kind === 'status'
+        ? 'claim_status'
+        : 'claim_disposition';
+
   const issuedAt = new Date();
 
   const bytes = await renderClaimLetter({
     kind: options.kind,
     claimNumber: claim.number,
     issuedAt,
+    brand: await brandFor(scoped, kindColumn),
     carrier: {
       name: org.legalName,
       addressLine1: org.addressLine1,
@@ -332,13 +341,6 @@ async function sendLetter(
     declineReason: options.declineReason,
     lateFiled: isLateFiled(claim.filedAt, load?.deliveredAt ?? null),
   });
-
-  const kindColumn =
-    options.kind === 'acknowledgement'
-      ? 'claim_acknowledgement'
-      : options.kind === 'status'
-        ? 'claim_status'
-        : 'claim_disposition';
 
   const stored = await storeDocument({
     scoped,

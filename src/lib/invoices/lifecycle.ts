@@ -14,6 +14,9 @@ import {
 } from '../db/schema';
 import type { ScopedDb } from '../db/scope';
 import { getOrganization } from '../organization/profile';
+import { accessorialsFor } from '../branding/accessorials';
+import { sumAccessorials } from '../branding/accessorial-math';
+import { brandFor } from '../branding/template';
 import { storeDocument } from '../documents/store';
 import { renderInvoice, type AttachedDocument, type InvoiceInput } from '../documents/invoice';
 import {
@@ -170,14 +173,25 @@ export async function updateDraft(
     };
   }
 
+  /*
+   * Itemised lines win over the typed figure. Once a carrier has broken the
+   * accessorials out, the sum of those lines is the only number that can be
+   * right — the form keeps the field read-only for the same reason, and this
+   * is the check that holds if a request arrives without going through it.
+   */
+  const lines = await accessorialsFor(scoped, invoiceId);
+  const accessorialCents =
+    lines.length > 0 ? sumAccessorials(lines) : edits.charges.accessorialCents;
+  const charges: Charges = { ...edits.charges, accessorialCents };
+
   await scoped.update('invoices', eq(invoicesTable.id, invoiceId), {
-    lineHaulCents: edits.charges.lineHaulCents,
-    fuelSurchargeCents: edits.charges.fuelSurchargeCents,
-    accessorialCents: edits.charges.accessorialCents,
-    codCollectedCents: edits.charges.codCollectedCents,
-    depositCents: edits.charges.depositCents,
-    taxCents: edits.charges.taxCents,
-    totalCents: totalCents(edits.charges),
+    lineHaulCents: charges.lineHaulCents,
+    fuelSurchargeCents: charges.fuelSurchargeCents,
+    accessorialCents: charges.accessorialCents,
+    codCollectedCents: charges.codCollectedCents,
+    depositCents: charges.depositCents,
+    taxCents: charges.taxCents,
+    totalCents: totalCents(charges),
     terms: edits.terms,
     factoringCompanyName: edits.factoringCompanyName,
     factoringNoticeText: edits.factoringNoticeText,
@@ -292,6 +306,8 @@ export async function buildInvoiceInput(
     },
 
     charges,
+    accessorials: await accessorialsFor(scoped, invoiceId),
+    brand: await brandFor(scoped, 'invoice'),
     paidCents: invoice.paidCents,
     currency: invoice.currency,
 

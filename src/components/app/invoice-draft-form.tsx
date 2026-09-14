@@ -38,6 +38,15 @@ export interface InvoiceDraftFormProps {
   values: InvoiceDraftValues;
   /** Which load figure the line haul came from, stated rather than assumed. */
   basisNote: string;
+  /**
+   * True once the invoice carries itemised accessorial lines.
+   *
+   * The figure is then the sum of those lines and typing over it would put a
+   * total on the invoice that its own breakdown contradicts. The server
+   * re-derives it regardless; this is what stops somebody wondering why their
+   * edit did not stick.
+   */
+  accessorialsItemised?: boolean;
 }
 
 const dollars = (cents: number) => (cents / 100).toFixed(2);
@@ -54,7 +63,12 @@ const CREDIT_FIELDS = [
   { name: 'deposit', label: 'Deposit held', key: 'depositCents' },
 ] as const;
 
-export function InvoiceDraftForm({ invoiceId, values, basisNote }: InvoiceDraftFormProps) {
+export function InvoiceDraftForm({
+  invoiceId,
+  values,
+  basisNote,
+  accessorialsItemised = false,
+}: InvoiceDraftFormProps) {
   const [amounts, setAmounts] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const field of [...AMOUNT_FIELDS, ...CREDIT_FIELDS]) {
@@ -67,18 +81,30 @@ export function InvoiceDraftForm({ invoiceId, values, basisNote }: InvoiceDraftF
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'save' | 'issue' | null>(null);
 
+  /*
+   * Itemised accessorials are read from the server on every render rather than
+   * held in this form's state. Adding a line changes the figure server-side,
+   * and a value captured when the form first mounted would leave the carrier
+   * looking at $0.00 beside a list of charges that plainly is not nothing.
+   */
+  const accessorialText = accessorialsItemised
+    ? dollars(values.accessorialCents)
+    : (amounts.accessorial ?? '');
+
   const preview = useMemo(() => {
     const cents = (name: string) => parseMoney(amounts[name] ?? '') ?? 0;
     const charges = {
       lineHaulCents: cents('lineHaul'),
       fuelSurchargeCents: cents('fuelSurcharge'),
-      accessorialCents: cents('accessorial'),
+      accessorialCents: accessorialsItemised
+        ? values.accessorialCents
+        : cents('accessorial'),
       taxCents: cents('tax'),
       codCollectedCents: cents('codCollected'),
       depositCents: cents('deposit'),
     };
     return { gross: grossCents(charges), total: totalCents(charges) };
-  }, [amounts]);
+  }, [amounts, accessorialsItemised, values.accessorialCents]);
 
   const unparseable = Object.entries(amounts).find(
     ([, value]) => value.trim() !== '' && parseMoney(value) === null,
@@ -130,25 +156,32 @@ export function InvoiceDraftForm({ invoiceId, values, basisNote }: InvoiceDraftF
         </div>
 
         <div className="grid gap-4 p-5 sm:grid-cols-2">
-          {AMOUNT_FIELDS.map((field) => (
-            <Input
-              key={field.name}
-              name={field.name}
-              label={field.label}
-              inputMode="decimal"
-              leading={<span className="text-sm">$</span>}
-              value={amounts[field.name] ?? ''}
-              onChange={(event) =>
-                setAmounts((current) => ({ ...current, [field.name]: event.target.value }))
-              }
-              error={
-                (amounts[field.name] ?? '').trim() !== '' &&
-                parseMoney(amounts[field.name] ?? '') === null
-                  ? 'Not an amount'
-                  : undefined
-              }
-            />
-          ))}
+          {AMOUNT_FIELDS.map((field) => {
+            const locked = accessorialsItemised && field.name === 'accessorial';
+
+            return (
+              <Input
+                key={field.name}
+                name={field.name}
+                label={field.label}
+                inputMode="decimal"
+                readOnly={locked}
+                leading={<span className="text-sm">$</span>}
+                value={locked ? accessorialText : (amounts[field.name] ?? '')}
+                onChange={(event) =>
+                  setAmounts((current) => ({ ...current, [field.name]: event.target.value }))
+                }
+                hint={locked ? 'Added up from the itemised charges below.' : undefined}
+                error={
+                  !locked &&
+                  (amounts[field.name] ?? '').trim() !== '' &&
+                  parseMoney(amounts[field.name] ?? '') === null
+                    ? 'Not an amount'
+                    : undefined
+                }
+              />
+            );
+          })}
         </div>
 
         <div className="border-t border-line px-5 py-4">
