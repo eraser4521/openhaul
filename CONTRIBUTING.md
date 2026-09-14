@@ -32,9 +32,10 @@ npm run build
 nothing lets a driver record one from the cab. The offline capture built for inspection photos is
 the obvious model.
 
-**Refunds.** A credit can leave money owing back to a customer, and the credit note asks how they
-want it settled — but nothing records the refund actually going out. That needs a payment-out
-alongside the payments-in already modelled.
+**Carrying an overpayment forward.** The credit note offers the customer two ways to settle money
+owed back: refunded, which is recorded, or applied against their next invoice, which is not. That
+needs a customer-level credit balance rather than a per-invoice one, and something to spend it
+against when the next invoice is raised.
 
 **Load import.** CSV and parsed dispatch sheets. This meets carriers where their loads already are
 without needing a load board of our own.

@@ -256,6 +256,8 @@ export const AUDIT = {
   creditNoteRaised: 'credit_note.raised',
   creditNoteVoided: 'credit_note.voided',
   paymentRecorded: 'payment.recorded',
+  refundIssued: 'refund.issued',
+  refundRemoved: 'refund.removed',
 
   driverCreated: 'driver.created',
   settlementFinalized: 'settlement.finalized',

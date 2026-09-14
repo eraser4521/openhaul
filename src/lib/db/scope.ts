@@ -38,6 +38,7 @@ export const TENANT_TABLES = {
   signatureEvents: schema.signatureEvents,
   invoices: schema.invoices,
   payments: schema.payments,
+  refunds: schema.refunds,
   creditNotes: schema.creditNotes,
   expenses: schema.expenses,
   settlements: schema.settlements,

@@ -386,6 +386,22 @@ receiving server is still trying, and calling that a bounce would have somebody 
 document that is about to arrive. The other half of the gap does not close: a message quietly
 dropped or filed as spam produces nothing to find.
 
+A credit raised after the customer has already paid leaves the carrier holding money that is not
+theirs, and a refund is what closes that. It is recorded rather than derived — which invoice, how
+much, by what method, and the date the money actually left — because the question asked six months
+later is "we sent them $500, against what?" and a computed figure cannot answer it. The credit note
+that caused the overpayment is cited where there is one.
+
+A refund **adds back** to the balance rather than reducing what was paid. The customer did pay that
+money; modelling the return as a negative payment would say it never arrived, quietly drop recorded
+revenue and move the aging report. And the app refuses to send back more than is owed, because
+over-refunding turns one mistake into two and hides the second — the invoice then reads as underpaid
+and looks like a collection problem rather than an error.
+
+The other way to settle an overpayment is to carry it against the customer's next invoice, which
+the credit note offers. That is not modelled: it needs a customer-level credit balance, and half of
+one would be worse than none. A carrier taking that route reduces the next invoice by hand.
+
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the
 certificate is the only evidence, for your own cover and for anyone you tender to. Certificates are
@@ -453,9 +469,9 @@ and inspection photographs past the window anybody could still use them as evide
 with every object behind them — the served copy, the thumbnail, and the original still carrying
 EXIF and a GPS fix — and a file two records share is left alone.
 
-**Not built yet.** Nothing on the original list. What is missing now is smaller and specific: a
-payment-out to close a refund, driver expense capture from the cab, and load import from CSV. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
+**Not built yet.** Nothing on the original list. What is missing now is smaller and specific:
+driver expense capture from the cab, load import from CSV, and carrying an overpayment against a
+customer's next invoice rather than refunding it. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

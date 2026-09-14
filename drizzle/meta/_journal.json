@@ -50,6 +50,13 @@
       "when": 1789424089654,
       "tag": "0006_stormy_menace",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789426227168,
+      "tag": "0007_flashy_starfox",
+      "breakpoints": true
     }
   ]
 }

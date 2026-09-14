@@ -30,6 +30,7 @@ import {
   type Charges,
 } from './compute';
 import { dueDateFor } from './terms';
+import { sumRefundsFor } from './refunds';
 
 /**
  * The invoice workflow.
@@ -476,7 +477,13 @@ export async function recordPayment(
    * chases a balance that is not owed.
    */
   const credited = invoice.creditedCents;
-  const status = statusAfterPayment(invoice.totalCents, paid, credited);
+  /*
+   * Refunds count too, for the same reason credits do. An invoice that was
+   * overpaid, refunded, and then part-paid again would otherwise read as
+   * settled on a stale figure.
+   */
+  const refunded = await sumRefundsFor(scoped, invoiceId);
+  const status = statusAfterPayment(invoice.totalCents, paid, credited, refunded);
 
   await scoped.update('invoices', eq(invoicesTable.id, invoiceId), {
     paidCents: paid,
@@ -491,7 +498,7 @@ export async function recordPayment(
   return {
     ok: true,
     paidCents: paid,
-    balanceCents: balanceCents(invoice.totalCents, paid, credited),
+    balanceCents: balanceCents(invoice.totalCents, paid, credited, refunded),
   };
 }
 

@@ -199,6 +199,65 @@ export const creditNotes = sqliteTable(
   ],
 );
 
+/**
+ * Money going back to a customer.
+ *
+ * A separate table rather than a negative `payments` row. Every figure that
+ * asks "what did this invoice collect" sums the payments, and a refund folded
+ * in as a negative would quietly answer a different question — revenue would
+ * drop, the aging report would move, and none of it would be wrong in a way
+ * anybody could see. Money out is a different instrument from money in, and
+ * the credit note is already the precedent: a reduction is a second document
+ * rather than an edit to the first.
+ *
+ * What makes a refund owed is an invoice whose payments and credits together
+ * exceed what was charged. The credit note that caused it is recorded where
+ * there is one, because "why did we send $500 back" is the question asked
+ * afterwards.
+ */
+export const refunds = sqliteTable(
+  'refunds',
+  {
+    id: pk(),
+    orgId: orgId(),
+    invoiceId: text('invoice_id').notNull(),
+    /** The credit that put the invoice into overpayment, where one did. */
+    creditNoteId: text('credit_note_id'),
+
+    amountCents: money('amount_cents').notNull(),
+    currency: currency(),
+    method: text('method', { enum: PAYMENT_METHODS }).notNull(),
+    /** Cheque number, ACH trace, whatever proves it went. */
+    reference: text('reference'),
+    /** When the money actually left, which is not when the row was written. */
+    issuedAt: ts('issued_at').notNull(),
+    notes: text('notes'),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('refunds_org_id_uq').on(t.orgId, t.id),
+    index('refunds_invoice_idx').on(t.orgId, t.invoiceId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'refunds_org_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.invoiceId],
+      foreignColumns: [invoices.orgId, invoices.id],
+      name: 'refunds_invoice_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.creditNoteId],
+      foreignColumns: [creditNotes.orgId, creditNotes.id],
+      name: 'refunds_credit_note_fk',
+    }),
+  ],
+);
+
+export type Refund = typeof refunds.$inferSelect;
+
 /** Driver-incurred costs against a load, with a receipt photo. */
 export const expenses = sqliteTable(
   'expenses',

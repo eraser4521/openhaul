@@ -49,7 +49,7 @@ export function totalCents(charges: Charges): number {
 }
 
 /**
- * Outstanding after payments received and credits allowed.
+ * Outstanding after payments received, credits allowed and refunds sent back.
  *
  * Credits reduce what is owed without touching `total`. The customer is
  * holding an invoice stating that figure and that figure is what was claimed
@@ -58,10 +58,33 @@ export function totalCents(charges: Charges): number {
  * in circulation under one identity.
  *
  * Goes negative when credits and payments together exceed the charge, which is
- * a refund owed to the customer rather than a figure to clamp away.
+ * money the carrier is holding on the customer's behalf rather than a figure
+ * to clamp away. A refund adds back: sending the money returns the position to
+ * zero without pretending the payment never arrived.
  */
-export function balanceCents(total: number, paid: number, credited = 0): number {
-  return total - paid - credited;
+export function balanceCents(total: number, paid: number, credited = 0, refunded = 0): number {
+  return total - paid - credited + refunded;
+}
+
+/**
+ * What is owed back to the customer and has not been sent yet.
+ *
+ * Never negative. A refund larger than the overpayment would be a second
+ * mistake on top of the first, so the figure the screen offers is clamped and
+ * `checkRefundable` refuses anything above it.
+ */
+export function refundableCents(
+  total: number,
+  paid: number,
+  credited = 0,
+  refunded = 0,
+): number {
+  return Math.max(0, -balanceCents(total, paid, credited, refunded));
+}
+
+/** Sums refunds already sent, the same way payments are summed. */
+export function sumRefunds(refunds: ReadonlyArray<{ amountCents: number }>): number {
+  return refunds.reduce((sum, refund) => sum + refund.amountCents, 0);
 }
 
 /**
@@ -131,6 +154,8 @@ export interface StatusInput {
   totalCents: number;
   paidCents: number;
   creditedCents?: number;
+  /** Sent back to the customer, which returns an overpayment to settled. */
+  refundedCents?: number;
   dueAt: Date | null;
 }
 
@@ -146,18 +171,25 @@ export function effectiveStatus(invoice: StatusInput, now: Date): InvoiceStatus 
   if (invoice.status === 'void' || invoice.status === 'draft') return invoice.status;
 
   const credited = invoice.creditedCents ?? 0;
+  const refunded = invoice.refundedCents ?? 0;
 
-  // Nothing owed is nothing owed, whether it was paid or credited away.
-  if (balanceCents(invoice.totalCents, invoice.paidCents, credited) <= 0) return 'paid';
+  // Nothing owed is nothing owed, whether it was paid, credited away, or
+  // overpaid and sent back.
+  if (balanceCents(invoice.totalCents, invoice.paidCents, credited, refunded) <= 0) return 'paid';
 
   if (invoice.dueAt && invoice.dueAt.getTime() < now.getTime()) return 'overdue';
 
   return invoice.paidCents > 0 ? 'partially_paid' : invoice.status;
 }
 
-/** The status to store after payments or credits change. */
-export function statusAfterPayment(total: number, paid: number, credited = 0): InvoiceStatus {
-  if (balanceCents(total, paid, credited) <= 0) return 'paid';
+/** The status to store after payments, credits or refunds change. */
+export function statusAfterPayment(
+  total: number,
+  paid: number,
+  credited = 0,
+  refunded = 0,
+): InvoiceStatus {
+  if (balanceCents(total, paid, credited, refunded) <= 0) return 'paid';
   return paid > 0 ? 'partially_paid' : 'sent';
 }
 

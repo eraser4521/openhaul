@@ -29,6 +29,8 @@ import { can } from '@/lib/auth/capabilities';
 import { InvoiceDraftForm } from '@/components/app/invoice-draft-form';
 import { PaymentForm, VoidInvoice } from '@/components/app/payment-form';
 import { CreditNotes } from '@/components/app/credit-notes';
+import { Refunds } from '@/components/app/refunds';
+import { checkRefundable, refundsFor } from '@/lib/invoices/refunds';
 import { InvoiceAccessorials } from '@/components/app/invoice-accessorials';
 import { checkCreditable, creditsFor } from '@/lib/invoices/credits';
 import { accessorialsFor, listRates } from '@/lib/branding/accessorials';
@@ -61,8 +63,17 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const invoice = await db.selectOne('invoices', eq(invoicesTable.id, id));
   if (!invoice) notFound();
 
-  const [customer, load, paymentRows, creditRows, creditGate, accessorials, catalogue] =
-    await Promise.all([
+  const [
+    customer,
+    load,
+    paymentRows,
+    creditRows,
+    creditGate,
+    refundRows,
+    refundGate,
+    accessorials,
+    catalogue,
+  ] = await Promise.all([
       invoice.customerId
         ? db.selectOne('customers', eq(customersTable.id, invoice.customerId))
         : Promise.resolve(null),
@@ -72,6 +83,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       db.select('payments', eq(paymentsTable.invoiceId, id)),
       creditsFor(db, id),
       checkCreditable(db, id),
+      refundsFor(db, id),
+      checkRefundable(db, id),
       accessorialsFor(db, id),
       listRates(db),
     ]);
@@ -84,7 +97,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
   const now = new Date();
   const status = effectiveStatus(invoice, now);
-  const balance = balanceCents(invoice.totalCents, invoice.paidCents, invoice.creditedCents);
+  const refunded = refundRows.reduce((sum, refund) => sum + refund.amountCents, 0);
+  const balance = balanceCents(
+    invoice.totalCents,
+    invoice.paidCents,
+    invoice.creditedCents,
+    refunded,
+  );
 
   const charges = {
     lineHaulCents: invoice.lineHaulCents,
@@ -163,8 +182,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               hint: invoice.creditedCents > 0 ? 'The invoice itself is unchanged' : undefined,
             },
             {
-              label: balance >= 0 ? 'Balance due' : 'Refund due',
+              label: balance >= 0 ? 'Balance due' : 'Owed back',
               value: money(Math.abs(balance)),
+              hint: refunded > 0 ? `${money(refunded)} already sent back` : undefined,
             },
             {
               label: 'Payment due',
@@ -350,6 +370,26 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </Card>
           </section>
         )}
+
+        <Refunds
+          invoiceId={invoice.id}
+          refundableCents={refundGate.refundableCents}
+          canWrite={canPay}
+          today={now.toISOString().slice(0, 10)}
+          creditNotes={creditRows
+            .filter((note) => note.voidedAt === null)
+            .map((note) => ({ id: note.id, number: note.number, amountCents: note.amountCents }))}
+          refunds={refundRows.map((refund) => ({
+            id: refund.id,
+            amountCents: refund.amountCents,
+            method: refund.method,
+            reference: refund.reference,
+            notes: refund.notes,
+            issuedAt: refund.issuedAt.toISOString(),
+            creditNoteNumber:
+              creditRows.find((note) => note.id === refund.creditNoteId)?.number ?? null,
+          }))}
+        />
 
         {invoice.status !== 'draft' && invoice.status !== 'void' && (
           <section>

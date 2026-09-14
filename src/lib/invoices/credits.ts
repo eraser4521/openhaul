@@ -8,6 +8,7 @@ import {
 import type { CreditReason } from '../db/schema';
 import type { ScopedDb } from '../db/scope';
 import { balanceCents, statusAfterPayment } from './compute';
+import { sumRefundsFor } from './refunds';
 
 /**
  * Crediting an issued invoice.
@@ -230,12 +231,19 @@ export async function recomputeCredits(scoped: ScopedDb, invoiceId: string): Pro
   const notes = await scoped.select('creditNotes', eq(creditNotesTable.invoiceId, invoiceId));
   const credited = sumCredits(notes);
 
+  /*
+   * Money already sent back is part of the position, so voiding a credit after
+   * a refund cannot leave the invoice claiming it still holds the customer's
+   * money.
+   */
+  const refunded = await sumRefundsFor(scoped, invoiceId);
+
   const status =
     invoice.status === 'void'
       ? invoice.status
-      : statusAfterPayment(invoice.totalCents, invoice.paidCents, credited);
+      : statusAfterPayment(invoice.totalCents, invoice.paidCents, credited, refunded);
 
-  const balance = balanceCents(invoice.totalCents, invoice.paidCents, credited);
+  const balance = balanceCents(invoice.totalCents, invoice.paidCents, credited, refunded);
 
   await scoped.update('invoices', eq(invoicesTable.id, invoiceId), {
     creditedCents: credited,
