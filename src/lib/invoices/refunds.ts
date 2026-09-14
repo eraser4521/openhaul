@@ -8,7 +8,7 @@ import {
 } from '../db/schema';
 import type { ScopedDb } from '../db/scope';
 import { appendAudit, AUDIT } from '../audit/chain';
-import { balanceCents, refundableCents, statusAfterPayment, sumRefunds } from './compute';
+import { balanceCents, refundableCents, settledStatus, sumRefunds } from './compute';
 
 /**
  * Sending money back.
@@ -94,12 +94,7 @@ export async function checkRefundable(
   }
 
   const refunded = await sumRefundsFor(scoped, invoiceId);
-  const refundable = refundableCents(
-    invoice.totalCents,
-    invoice.paidCents,
-    invoice.creditedCents,
-    refunded,
-  );
+  const refundable = refundableCents({ ...invoice, refundedCents: refunded });
 
   if (refundable === 0) {
     return {
@@ -168,17 +163,10 @@ export async function recordRefund(
   if (!row) return { ok: false, error: 'The refund could not be recorded.' };
 
   const refunded = await sumRefundsFor(scoped, invoiceId);
+  const position = { ...invoice, refundedCents: refunded };
 
   // A voided invoice keeps its status: money going back does not un-void it.
-  const status =
-    invoice.status === 'void'
-      ? invoice.status
-      : statusAfterPayment(
-          invoice.totalCents,
-          invoice.paidCents,
-          invoice.creditedCents,
-          refunded,
-        );
+  const status = invoice.status === 'void' ? invoice.status : settledStatus(position);
 
   await scoped.update('invoices', eq(invoicesTable.id, invoiceId), { status });
 
@@ -200,12 +188,7 @@ export async function recordRefund(
     ok: true,
     refundId: row.id,
     refundedCents: refunded,
-    balanceCents: balanceCents(
-      invoice.totalCents,
-      invoice.paidCents,
-      invoice.creditedCents,
-      refunded,
-    ),
+    balanceCents: balanceCents(position),
   };
 }
 
@@ -235,12 +218,7 @@ export async function removeRefund(
     const status =
       invoice.status === 'void'
         ? invoice.status
-        : statusAfterPayment(
-            invoice.totalCents,
-            invoice.paidCents,
-            invoice.creditedCents,
-            refunded,
-          );
+        : settledStatus({ ...invoice, refundedCents: refunded });
 
     await scoped.update('invoices', eq(invoicesTable.id, invoiceId), { status });
   }

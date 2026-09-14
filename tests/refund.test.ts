@@ -7,7 +7,7 @@ import {
   balanceCents,
   effectiveStatus,
   refundableCents,
-  statusAfterPayment,
+  settledStatus,
   sumRefunds,
 } from '@/lib/invoices/compute';
 import { applyMigrations } from './helpers/temp-db';
@@ -28,8 +28,9 @@ import { applyMigrations } from './helpers/temp-db';
 describe('the arithmetic', () => {
   it('returns an overpaid invoice to zero when the money goes back', () => {
     // $3,475 invoiced, paid in full, then a $500 credit: $500 is owed back.
-    expect(balanceCents(347_500, 347_500, 50_000)).toBe(-50_000);
-    expect(balanceCents(347_500, 347_500, 50_000, 50_000)).toBe(0);
+    const invoiced = { totalCents: 347_500, paidCents: 347_500, creditedCents: 50_000 };
+    expect(balanceCents(invoiced)).toBe(-50_000);
+    expect(balanceCents({ ...invoiced, refundedCents: 50_000 })).toBe(0);
   });
 
   it('adds back rather than reducing what was paid', () => {
@@ -41,19 +42,25 @@ describe('the arithmetic', () => {
     const paid = 400_000;
     const refunded = 52_500;
 
-    expect(balanceCents(347_500, paid, 0, refunded)).toBe(0);
-    expect(balanceCents(347_500, paid - refunded, 0, 0)).toBe(0);
+    expect(balanceCents({ totalCents: 347_500, paidCents: paid, refundedCents: refunded })).toBe(0);
+    expect(balanceCents({ totalCents: 347_500, paidCents: paid - refunded })).toBe(0);
     // Same balance, different story. `paidCents` must stay what arrived.
     expect(paid).toBe(400_000);
   });
 
   it('reports what is still owed back, never a negative', () => {
-    expect(refundableCents(347_500, 347_500, 50_000)).toBe(50_000);
-    expect(refundableCents(347_500, 347_500, 50_000, 20_000)).toBe(30_000);
-    expect(refundableCents(347_500, 347_500, 50_000, 50_000)).toBe(0);
+    const overpaid = { totalCents: 347_500, paidCents: 347_500, creditedCents: 50_000 };
+    expect(refundableCents(overpaid)).toBe(50_000);
+    expect(refundableCents({ ...overpaid, refundedCents: 20_000 })).toBe(30_000);
+    expect(refundableCents({ ...overpaid, refundedCents: 50_000 })).toBe(0);
     // Over-refunded already: still zero, not a negative to offer back.
-    expect(refundableCents(347_500, 347_500, 50_000, 90_000)).toBe(0);
-    expect(refundableCents(347_500, 100_000)).toBe(0);
+    expect(refundableCents({ ...overpaid, refundedCents: 90_000 })).toBe(0);
+    expect(refundableCents({ totalCents: 347_500, paidCents: 100_000 })).toBe(0);
+
+    // A carry-forward draws on the same figure, which is what stops $500
+    // being both sent back and kept.
+    expect(refundableCents({ ...overpaid, carriedForwardCents: 50_000 })).toBe(0);
+    expect(refundableCents({ ...overpaid, refundedCents: 20_000, carriedForwardCents: 30_000 })).toBe(0);
   });
 
   it('sums refunds the way payments are summed', () => {
@@ -62,13 +69,16 @@ describe('the arithmetic', () => {
   });
 
   it('keeps an overpaid invoice settled once it is refunded', () => {
-    expect(statusAfterPayment(347_500, 347_500, 50_000)).toBe('paid');
-    expect(statusAfterPayment(347_500, 347_500, 50_000, 50_000)).toBe('paid');
+    const overpaid = { totalCents: 347_500, paidCents: 347_500, creditedCents: 50_000 };
+    expect(settledStatus(overpaid)).toBe('paid');
+    expect(settledStatus({ ...overpaid, refundedCents: 50_000 })).toBe('paid');
   });
 
   it('does not call an invoice paid when a refund leaves it short', () => {
     // Refunding more than was over means real money is now outstanding.
-    expect(statusAfterPayment(347_500, 347_500, 0, 50_000)).toBe('partially_paid');
+    expect(
+      settledStatus({ totalCents: 347_500, paidCents: 347_500, refundedCents: 50_000 }),
+    ).toBe('partially_paid');
   });
 
   it('shows the refund in the derived status', () => {

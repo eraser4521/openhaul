@@ -7,7 +7,7 @@ import {
 } from '../db/schema';
 import type { CreditReason } from '../db/schema';
 import type { ScopedDb } from '../db/scope';
-import { balanceCents, statusAfterPayment } from './compute';
+import { balanceCents, settledStatus } from './compute';
 import { sumRefundsFor } from './refunds';
 
 /**
@@ -238,12 +238,9 @@ export async function recomputeCredits(scoped: ScopedDb, invoiceId: string): Pro
    */
   const refunded = await sumRefundsFor(scoped, invoiceId);
 
-  const status =
-    invoice.status === 'void'
-      ? invoice.status
-      : statusAfterPayment(invoice.totalCents, invoice.paidCents, credited, refunded);
-
-  const balance = balanceCents(invoice.totalCents, invoice.paidCents, credited, refunded);
+  const position = { ...invoice, creditedCents: credited, refundedCents: refunded };
+  const status = invoice.status === 'void' ? invoice.status : settledStatus(position);
+  const balance = balanceCents(position);
 
   await scoped.update('invoices', eq(invoicesTable.id, invoiceId), {
     creditedCents: credited,

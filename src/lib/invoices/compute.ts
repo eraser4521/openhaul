@@ -49,7 +49,31 @@ export function totalCents(charges: Charges): number {
 }
 
 /**
- * Outstanding after payments received, credits allowed and refunds sent back.
+ * Everything that has settled an invoice, or unsettled it.
+ *
+ * Passed as one object rather than as positional arguments because there are
+ * six of them now and four are optional. `balance(total, paid, 0, 0, applied)`
+ * is a transposition waiting to happen, and transposing a refund for a credit
+ * moves real money. An `invoices` row satisfies this shape apart from
+ * `refundedCents`, which has no column — so most callers spread the row and
+ * add that one figure, and a term added later reaches them all.
+ */
+export interface Settled {
+  totalCents: number;
+  /** Money that actually arrived. */
+  paidCents: number;
+  /** Forgiven by credit note, without altering what the invoice says. */
+  creditedCents?: number;
+  /** Sent back to the customer. */
+  refundedCents?: number;
+  /** Settled from a balance the customer already had with the carrier. */
+  appliedCreditCents?: number;
+  /** Overpayment moved off this invoice into the customer's balance. */
+  carriedForwardCents?: number;
+}
+
+/**
+ * Outstanding, after everything that has settled it in either direction.
  *
  * Credits reduce what is owed without touching `total`. The customer is
  * holding an invoice stating that figure and that figure is what was claimed
@@ -57,34 +81,67 @@ export function totalCents(charges: Charges): number {
  * due. Rewriting the invoice's total instead would leave two different numbers
  * in circulation under one identity.
  *
- * Goes negative when credits and payments together exceed the charge, which is
+ * Goes negative when payments and credits together exceed the charge, which is
  * money the carrier is holding on the customer's behalf rather than a figure
- * to clamp away. A refund adds back: sending the money returns the position to
- * zero without pretending the payment never arrived.
+ * to clamp away. Two things return it to zero and both add back: a refund,
+ * where the money leaves, and a carry-forward, where it moves to the
+ * customer's balance and the carrier keeps holding it. Neither pretends the
+ * payment never arrived.
  */
-export function balanceCents(total: number, paid: number, credited = 0, refunded = 0): number {
-  return total - paid - credited + refunded;
+export function balanceCents(settled: Settled): number {
+  return (
+    settled.totalCents -
+    settled.paidCents -
+    (settled.creditedCents ?? 0) -
+    (settled.appliedCreditCents ?? 0) +
+    (settled.refundedCents ?? 0) +
+    (settled.carriedForwardCents ?? 0)
+  );
 }
 
 /**
- * What is owed back to the customer and has not been sent yet.
+ * What is owed back to the customer and has not been dealt with yet.
  *
  * Never negative. A refund larger than the overpayment would be a second
  * mistake on top of the first, so the figure the screen offers is clamped and
- * `checkRefundable` refuses anything above it.
+ * the gates refuse anything above it. Refunds and carry-forwards draw on the
+ * same figure, which is what stops $500 being both sent back and kept.
  */
-export function refundableCents(
-  total: number,
-  paid: number,
-  credited = 0,
-  refunded = 0,
-): number {
-  return Math.max(0, -balanceCents(total, paid, credited, refunded));
+export function refundableCents(settled: Settled): number {
+  return Math.max(0, -balanceCents(settled));
+}
+
+/**
+ * What has landed against the invoice, however it landed.
+ *
+ * Used for the "has anything been received" test behind partial-payment
+ * status. Credit applied from a balance the customer already had counts: an
+ * invoice half settled that way is not untouched, and showing it as merely
+ * sent would put it back on the chase list.
+ */
+export function settledInCents(settled: Settled): number {
+  return settled.paidCents + (settled.appliedCreditCents ?? 0);
 }
 
 /** Sums refunds already sent, the same way payments are summed. */
 export function sumRefunds(refunds: ReadonlyArray<{ amountCents: number }>): number {
   return refunds.reduce((sum, refund) => sum + refund.amountCents, 0);
+}
+
+/**
+ * A customer's credit balance: everything carried in, less everything spent.
+ *
+ * Derived from the movements every time rather than kept on the customer
+ * record. A stored balance drifts the first time a movement is corrected, and
+ * a drifting balance is the carrier quietly keeping or giving away money.
+ */
+export function creditBalance(
+  movements: ReadonlyArray<{ direction: 'in' | 'out'; amountCents: number }>,
+): number {
+  return movements.reduce(
+    (sum, movement) => sum + (movement.direction === 'in' ? movement.amountCents : -movement.amountCents),
+    0,
+  );
 }
 
 /**
@@ -149,13 +206,8 @@ export const BILLING_BASIS_LABEL: Record<BillingBasis, string> = {
  * Status
  * ---------------------------------------------------------------------- */
 
-export interface StatusInput {
+export interface StatusInput extends Settled {
   status: InvoiceStatus;
-  totalCents: number;
-  paidCents: number;
-  creditedCents?: number;
-  /** Sent back to the customer, which returns an overpayment to settled. */
-  refundedCents?: number;
   dueAt: Date | null;
 }
 
@@ -170,27 +222,18 @@ export interface StatusInput {
 export function effectiveStatus(invoice: StatusInput, now: Date): InvoiceStatus {
   if (invoice.status === 'void' || invoice.status === 'draft') return invoice.status;
 
-  const credited = invoice.creditedCents ?? 0;
-  const refunded = invoice.refundedCents ?? 0;
-
-  // Nothing owed is nothing owed, whether it was paid, credited away, or
-  // overpaid and sent back.
-  if (balanceCents(invoice.totalCents, invoice.paidCents, credited, refunded) <= 0) return 'paid';
+  // Nothing owed is nothing owed, however it stopped being owed.
+  if (balanceCents(invoice) <= 0) return 'paid';
 
   if (invoice.dueAt && invoice.dueAt.getTime() < now.getTime()) return 'overdue';
 
-  return invoice.paidCents > 0 ? 'partially_paid' : invoice.status;
+  return settledInCents(invoice) > 0 ? 'partially_paid' : invoice.status;
 }
 
-/** The status to store after payments, credits or refunds change. */
-export function statusAfterPayment(
-  total: number,
-  paid: number,
-  credited = 0,
-  refunded = 0,
-): InvoiceStatus {
-  if (balanceCents(total, paid, credited, refunded) <= 0) return 'paid';
-  return paid > 0 ? 'partially_paid' : 'sent';
+/** The status to store after anything that settles an invoice changes. */
+export function settledStatus(settled: Settled): InvoiceStatus {
+  if (balanceCents(settled) <= 0) return 'paid';
+  return settledInCents(settled) > 0 ? 'partially_paid' : 'sent';
 }
 
 /* -------------------------------------------------------------------------
@@ -226,11 +269,8 @@ export function agingBucket(dueAt: Date | null, now: Date): AgingBucket {
   return '90_plus';
 }
 
-export interface AgingRow {
+export interface AgingRow extends Settled {
   status: InvoiceStatus;
-  totalCents: number;
-  paidCents: number;
-  creditedCents?: number;
   dueAt: Date | null;
 }
 
@@ -251,11 +291,7 @@ export function ageReceivables(
     // A draft has not been sent to anybody and a void invoice is not owed.
     if (invoice.status === 'draft' || invoice.status === 'void') continue;
 
-    const outstanding = balanceCents(
-      invoice.totalCents,
-      invoice.paidCents,
-      invoice.creditedCents ?? 0,
-    );
+    const outstanding = balanceCents(invoice);
     if (outstanding <= 0) continue;
 
     totals[agingBucket(invoice.dueAt, now)] += outstanding;
@@ -267,12 +303,7 @@ export function ageReceivables(
 export function totalOutstanding(invoices: readonly AgingRow[]): number {
   return invoices
     .filter((invoice) => invoice.status !== 'draft' && invoice.status !== 'void')
-    .reduce(
-      (sum, invoice) =>
-        sum +
-        Math.max(0, balanceCents(invoice.totalCents, invoice.paidCents, invoice.creditedCents ?? 0)),
-      0,
-    );
+    .reduce((sum, invoice) => sum + Math.max(0, balanceCents(invoice)), 0);
 }
 
 /* -------------------------------------------------------------------------

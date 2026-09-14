@@ -4,7 +4,7 @@ import {
   ageReceivables,
   balanceCents,
   effectiveStatus,
-  statusAfterPayment,
+  settledStatus,
   totalOutstanding,
 } from '@/lib/invoices/compute';
 import { nextCreditNumber, sumCredits, liveCredits } from '@/lib/invoices/credits';
@@ -22,36 +22,48 @@ import { renderCreditNote, type CreditNoteInput } from '@/lib/documents/credit-n
 
 describe('balanceCents with credits', () => {
   it('subtracts credits alongside payments', () => {
-    expect(balanceCents(347_500, 100_000, 47_500)).toBe(200_000);
+    expect(balanceCents({ totalCents: 347_500, paidCents: 100_000, creditedCents: 47_500 })).toBe(
+      200_000,
+    );
   });
 
   it('is unchanged when nothing is credited', () => {
-    expect(balanceCents(347_500, 100_000, 0)).toBe(247_500);
-    expect(balanceCents(347_500, 100_000)).toBe(247_500);
+    expect(balanceCents({ totalCents: 347_500, paidCents: 100_000, creditedCents: 0 })).toBe(
+      247_500,
+    );
+    expect(balanceCents({ totalCents: 347_500, paidCents: 100_000 })).toBe(247_500);
   });
 
   it('settles an invoice credited in full', () => {
-    expect(balanceCents(347_500, 0, 347_500)).toBe(0);
+    expect(balanceCents({ totalCents: 347_500, paidCents: 0, creditedCents: 347_500 })).toBe(0);
   });
 
   it('goes negative into a refund rather than clamping', () => {
     // Paid in full, then credited: the customer is owed money back, and
     // hiding that behind a zero would lose it.
-    expect(balanceCents(347_500, 347_500, 50_000)).toBe(-50_000);
+    expect(balanceCents({ totalCents: 347_500, paidCents: 347_500, creditedCents: 50_000 })).toBe(
+      -50_000,
+    );
   });
 });
 
-describe('statusAfterPayment with credits', () => {
+describe('settledStatus with credits', () => {
   it('settles an unpaid invoice that was credited to zero', () => {
-    expect(statusAfterPayment(347_500, 0, 347_500)).toBe('paid');
+    expect(settledStatus({ totalCents: 347_500, paidCents: 0, creditedCents: 347_500 })).toBe(
+      'paid',
+    );
   });
 
   it('is partially paid when a payment and a credit together fall short', () => {
-    expect(statusAfterPayment(347_500, 100_000, 47_500)).toBe('partially_paid');
+    expect(
+      settledStatus({ totalCents: 347_500, paidCents: 100_000, creditedCents: 47_500 }),
+    ).toBe('partially_paid');
   });
 
   it('stays sent when only a partial credit exists and nothing was paid', () => {
-    expect(statusAfterPayment(347_500, 0, 47_500)).toBe('sent');
+    expect(settledStatus({ totalCents: 347_500, paidCents: 0, creditedCents: 47_500 })).toBe(
+      'sent',
+    );
   });
 });
 

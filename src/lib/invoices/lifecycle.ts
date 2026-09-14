@@ -9,6 +9,7 @@ import {
   stops as stopsTable,
   vehicles as vehiclesTable,
   venues as venuesTable,
+  type InvoiceStatus,
   type PaymentMethod,
   type PaymentTerms,
 } from '../db/schema';
@@ -23,7 +24,7 @@ import {
   balanceCents,
   deriveCharges,
   nextNumberFrom,
-  statusAfterPayment,
+  settledStatus,
   sumPayments,
   totalCents,
   type BillingBasis,
@@ -483,7 +484,8 @@ export async function recordPayment(
    * settled on a stale figure.
    */
   const refunded = await sumRefundsFor(scoped, invoiceId);
-  const status = statusAfterPayment(invoice.totalCents, paid, credited, refunded);
+  const position = { ...invoice, paidCents: paid, creditedCents: credited, refundedCents: refunded };
+  const status = settledStatus(position);
 
   await scoped.update('invoices', eq(invoicesTable.id, invoiceId), {
     paidCents: paid,
@@ -495,16 +497,56 @@ export async function recordPayment(
     await scoped.update('loads', eq(loadsTable.id, invoice.loadId), { status: 'paid' });
   }
 
-  return {
-    ok: true,
-    paidCents: paid,
-    balanceCents: balanceCents(invoice.totalCents, paid, credited, refunded),
-  };
+  return { ok: true, paidCents: paid, balanceCents: balanceCents(position) };
 }
 
 /* -------------------------------------------------------------------------
  * Voiding
  * ---------------------------------------------------------------------- */
+
+/**
+ * Why this invoice cannot be voided, or null when it can.
+ *
+ * One function so the screen and the action cannot disagree. Offering a
+ * button the server will refuse is a worse experience than not offering it,
+ * and stating a reason the server does not actually enforce is worse again.
+ *
+ * Everything on the list is money. Voiding an invoice with money attached
+ * does not undo the money; it hides where the money went.
+ */
+export function voidBlockedReason(
+  invoice: {
+    status: InvoiceStatus;
+    appliedCreditCents: number;
+    carriedForwardCents: number;
+  },
+  paymentCount: number,
+): string | null {
+  if (invoice.status === 'void') return 'This invoice is already void.';
+
+  if (paymentCount > 0) {
+    return (
+      'Payments have been recorded against this invoice, so voiding it would erase money that ' +
+      'was actually received. Raise a credit against it instead.'
+    );
+  }
+
+  if (invoice.appliedCreditCents > 0) {
+    return (
+      "Credit from this customer's balance has been applied to this invoice, so voiding it " +
+      'would spend money with nothing to show for it. Remove the application first.'
+    );
+  }
+
+  if (invoice.carriedForwardCents > 0) {
+    return (
+      "An overpayment on this invoice was carried into the customer's balance, so voiding it " +
+      'would leave money in their account that came from nowhere. Remove that movement first.'
+    );
+  }
+
+  return null;
+}
 
 export async function voidInvoice(
   scoped: ScopedDb,
@@ -514,17 +556,9 @@ export async function voidInvoice(
   const invoice = await scoped.selectOne('invoices', eq(invoicesTable.id, invoiceId));
   if (!invoice) return { ok: false, error: 'No such invoice.' };
 
-  if (invoice.status === 'void') return { ok: false, error: 'This invoice is already void.' };
-
   const paid = await scoped.select('payments', eq(paymentsTable.invoiceId, invoiceId));
-  if (paid.length > 0) {
-    return {
-      ok: false,
-      error:
-        'Payments have been recorded against this invoice, so voiding it would erase money that ' +
-        'was actually received. Raise a credit against it instead.',
-    };
-  }
+  const blocked = voidBlockedReason(invoice, paid.length);
+  if (blocked) return { ok: false, error: blocked };
 
   if (!reason.trim()) {
     return { ok: false, error: 'Say why this invoice is being voided — it stays on the record.' };

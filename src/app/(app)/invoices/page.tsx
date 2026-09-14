@@ -19,17 +19,35 @@ export const metadata = { title: 'Invoices' };
 
 export default async function InvoicesPage() {
   const { db } = await requireSessionOrRedirect();
-  const [invoices, customers] = await Promise.all([
+  const [invoices, customers, refunds] = await Promise.all([
     db.select('invoices'),
     db.select('customers'),
+    db.select('refunds'),
   ]);
 
   const now = new Date();
-  const outstanding = totalOutstanding(invoices);
-  const aged = ageReceivables(invoices, now);
+
+  /*
+   * Refunds are rows rather than a column, so the position of every invoice
+   * is assembled once here. Leaving them out would show an invoice that was
+   * overpaid and sent back as still owing money to the customer, on the one
+   * screen a carrier scans to decide what to chase.
+   */
+  const refundedBy = new Map<string, number>();
+  for (const refund of refunds) {
+    refundedBy.set(refund.invoiceId, (refundedBy.get(refund.invoiceId) ?? 0) + refund.amountCents);
+  }
+
+  const positions = invoices.map((invoice) => ({
+    ...invoice,
+    refundedCents: refundedBy.get(invoice.id) ?? 0,
+  }));
+
+  const outstanding = totalOutstanding(positions);
+  const aged = ageReceivables(positions, now);
   const customerName = new Map(customers.map((customer) => [customer.id, customer.name]));
 
-  const sorted = invoices.slice().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const sorted = positions.slice().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
   return (
     <>
@@ -81,11 +99,7 @@ export default async function InvoicesPage() {
               <ul className="space-y-2">
                 {sorted.map((invoice) => {
                   const status = effectiveStatus(invoice, now);
-                  const balance = balanceCents(
-                    invoice.totalCents,
-                    invoice.paidCents,
-                    invoice.creditedCents,
-                  );
+                  const balance = balanceCents(invoice);
 
                   return (
                     <li key={invoice.id}>

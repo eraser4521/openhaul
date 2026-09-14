@@ -108,6 +108,7 @@ template does not reproduce the record that was actually agreed.
 | **Bounces** | Delivery notifications read back out of your mailbox and matched to the send, so a failure downstream stops reading as accepted |
 | **Sending** | Over your own SMTP, with the attachment hash-checked first and every attempt recorded — and no claim that anything was delivered |
 | **Credits** | A reduction is a second document referencing the invoice, never an edit to the one already sent |
+| **Overpayments** | Sent back, or kept on account against the customer's next invoice — a ledger whose every movement names an invoice |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -413,9 +414,35 @@ revenue and move the aging report. And the app refuses to send back more than is
 over-refunding turns one mistake into two and hides the second — the invoice then reads as underpaid
 and looks like a collection problem rather than an error.
 
-The other way to settle an overpayment is to carry it against the customer's next invoice, which
-the credit note offers. That is not modelled: it needs a customer-level credit balance, and half of
-one would be worse than none. A carrier taking that route reduces the next invoice by hand.
+The other way to settle an overpayment is to keep it. The credit note tells the customer they can
+have it back or have it carried against their next invoice, so both exist: the money moves into a
+balance the carrier holds for that customer, the overpaid invoice settles exactly as it would on a
+refund, and nothing leaves the bank. The two draw on the same figure, which is what stops $500
+being both sent back and kept.
+
+The balance is a ledger, not a column on the customer. It is the sum of its movements, for the same
+reason the paid total is rebuilt from the payment rows every time — a running total drifts the
+first time a movement is corrected, and a customer's balance drifting is the carrier quietly
+keeping or giving away money nobody can account for. Every movement names an invoice, which is what
+answers the question actually asked a year later: you kept $500 of ours in March, where did it go?
+
+Spending it is deliberate rather than automatic. A balance applied the moment an invoice is raised
+is a reduction nobody chose on a document about to go out, and the first anyone hears of it is a
+query about the figure — so the balance is stated on the invoice where it cannot be missed and
+somebody clicks. What lands is recorded as applied credit, not as a payment: no money arrived
+today, it arrived earlier on another invoice, and an invoice claiming otherwise would overstate
+what was banked this period. It is not a credit note either — the charge was not reduced and no
+document says it was.
+
+Three refusals hold it together. Never more than the customer holds, which would invent money;
+never more than the invoice owes, which would push it into overpayment against itself and start
+the cycle again; and a carry-forward cannot be undone once the money has been spent, because the
+alternative is a negative balance — the customer owing the carrier money that nothing on any
+invoice accounts for. Voiding an invoice with credit attached is refused for the same reason:
+voiding does not undo money, it hides where the money went.
+
+What the app does not do is tell the customer. The balance is the carrier's record of a decision
+the customer asked for; there is no statement of account to send them yet.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the
@@ -505,9 +532,9 @@ and a postal code, and a board export usually carries a city and a state — so 
 the stop keeps what was known as a note, and the preview says which of the five are missing. An
 invented street would end up on a bill of lading.
 
-**Not built yet.** Nothing on the original list. What is missing now is one thing: carrying an
-overpayment against a customer's next invoice rather than refunding it. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
+**Not built yet.** Nothing on the original list, and nothing that was on it after. The next useful
+thing is a statement of account — the document that tells a customer what they are holding with
+you. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

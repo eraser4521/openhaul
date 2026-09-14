@@ -9,6 +9,8 @@ import { checksByCustomer } from '@/lib/fmcsa/lookup';
 import { hasFmcsaKey } from '@/lib/fmcsa/qcmobile';
 import { InsurancePanel } from '@/components/app/insurance-panel';
 import { listCertificates } from '@/lib/insurance/certificates';
+import { balancesByCustomer, movementsFor } from '@/lib/invoices/customer-credit';
+import { CreditLedger } from '@/components/app/credit-ledger';
 import { can } from '@/lib/auth/capabilities';
 
 export const metadata = { title: 'Customers' };
@@ -16,7 +18,27 @@ export const metadata = { title: 'Customers' };
 export default async function CustomersPage() {
   const { session, db } = await requireSessionOrRedirect();
 
-  const [customers, checks] = await Promise.all([db.select('customers'), checksByCustomer(db)]);
+  const [customers, checks, balances, invoices] = await Promise.all([
+    db.select('customers'),
+    checksByCustomer(db),
+    balancesByCustomer(db),
+    db.select('invoices'),
+  ]);
+
+  const invoiceNumbers = new Map(invoices.map((invoice) => [invoice.id, invoice.number]));
+
+  /*
+   * Only for customers who have ever had a movement. A ledger query for every
+   * customer on a screen that lists all of them would be a query per card,
+   * and almost all of them have no credit at all.
+   */
+  const ledgers = new Map(
+    await Promise.all(
+      customers
+        .filter((customer) => balances.has(customer.id))
+        .map(async (customer) => [customer.id, await movementsFor(db, customer.id)] as const),
+    ),
+  );
   const configured = hasFmcsaKey();
   const canEdit = can(session.role, 'customer.write');
 
@@ -101,6 +123,22 @@ export default async function CustomersPage() {
                               : 'No USDOT or MC number on file to check.'}
                           </p>
                         )}
+                      </div>
+
+                      <div className="mt-3 border-t border-line pt-3">
+                        <CreditLedger
+                          balanceCents={balances.get(customer.id) ?? 0}
+                          movements={(ledgers.get(customer.id) ?? []).map((movement) => ({
+                            id: movement.id,
+                            direction: movement.direction,
+                            amountCents: movement.amountCents,
+                            occurredAt: movement.occurredAt.toISOString(),
+                            note: movement.note,
+                            invoiceId: movement.invoiceId,
+                            invoiceNumber: invoiceNumbers.get(movement.invoiceId) ?? null,
+                            creditNoteNumber: null,
+                          }))}
+                        />
                       </div>
 
                       <div className="mt-3 border-t border-line pt-3">

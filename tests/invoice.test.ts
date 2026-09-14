@@ -10,7 +10,7 @@ import {
   grossCents,
   nextNumberFrom,
   parseMoney,
-  statusAfterPayment,
+  settledStatus,
   sumPayments,
   totalCents,
   totalOutstanding,
@@ -96,9 +96,9 @@ describe('invoice totals', () => {
   });
 
   it('computes the balance from payments received', () => {
-    expect(balanceCents(294_000, 0)).toBe(294_000);
-    expect(balanceCents(294_000, 100_000)).toBe(194_000);
-    expect(balanceCents(294_000, 294_000)).toBe(0);
+    expect(balanceCents({ totalCents: 294_000, paidCents: 0 })).toBe(294_000);
+    expect(balanceCents({ totalCents: 294_000, paidCents: 100_000 })).toBe(194_000);
+    expect(balanceCents({ totalCents: 294_000, paidCents: 294_000 })).toBe(0);
   });
 
   it('sums payments without floating point drift', () => {
@@ -280,21 +280,32 @@ describe('effectiveStatus', () => {
   });
 });
 
-describe('statusAfterPayment', () => {
+describe('settledStatus', () => {
   it('settles when the balance reaches zero', () => {
-    expect(statusAfterPayment(294_000, 294_000)).toBe('paid');
+    expect(settledStatus({ totalCents: 294_000, paidCents: 294_000 })).toBe('paid');
   });
 
   it('settles on an overpayment', () => {
-    expect(statusAfterPayment(294_000, 300_000)).toBe('paid');
+    expect(settledStatus({ totalCents: 294_000, paidCents: 300_000 })).toBe('paid');
   });
 
   it('is partially paid in between', () => {
-    expect(statusAfterPayment(294_000, 1)).toBe('partially_paid');
+    expect(settledStatus({ totalCents: 294_000, paidCents: 1 })).toBe('partially_paid');
   });
 
   it('returns to sent when every payment has been removed', () => {
-    expect(statusAfterPayment(294_000, 0)).toBe('sent');
+    expect(settledStatus({ totalCents: 294_000, paidCents: 0 })).toBe('sent');
+  });
+
+  it('counts applied credit as something having landed', () => {
+    // An invoice half settled from a balance the customer already had is not
+    // untouched, and calling it merely sent puts it back on the chase list.
+    expect(
+      settledStatus({ totalCents: 294_000, paidCents: 0, appliedCreditCents: 100_000 }),
+    ).toBe('partially_paid');
+    expect(
+      settledStatus({ totalCents: 294_000, paidCents: 0, appliedCreditCents: 294_000 }),
+    ).toBe('paid');
   });
 });
 

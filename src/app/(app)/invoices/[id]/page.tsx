@@ -30,9 +30,16 @@ import { InvoiceDraftForm } from '@/components/app/invoice-draft-form';
 import { PaymentForm, VoidInvoice } from '@/components/app/payment-form';
 import { CreditNotes } from '@/components/app/credit-notes';
 import { Refunds } from '@/components/app/refunds';
+import { CustomerCredit } from '@/components/app/customer-credit';
 import { checkRefundable, refundsFor } from '@/lib/invoices/refunds';
+import {
+  checkApplicable,
+  checkCarryForward,
+  movementsForInvoice,
+} from '@/lib/invoices/customer-credit';
 import { InvoiceAccessorials } from '@/components/app/invoice-accessorials';
 import { checkCreditable, creditsFor } from '@/lib/invoices/credits';
+import { voidBlockedReason } from '@/lib/invoices/lifecycle';
 import { accessorialsFor, listRates } from '@/lib/branding/accessorials';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -71,6 +78,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     creditGate,
     refundRows,
     refundGate,
+    carryGate,
+    applyGate,
+    creditMovements,
     accessorials,
     catalogue,
   ] = await Promise.all([
@@ -85,6 +95,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       checkCreditable(db, id),
       refundsFor(db, id),
       checkRefundable(db, id),
+      checkCarryForward(db, id),
+      checkApplicable(db, id),
+      movementsForInvoice(db, id),
       accessorialsFor(db, id),
       listRates(db),
     ]);
@@ -96,14 +109,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const claimNumbers = new Map(loadClaims.map((claim) => [claim.id, claim.number]));
 
   const now = new Date();
-  const status = effectiveStatus(invoice, now);
   const refunded = refundRows.reduce((sum, refund) => sum + refund.amountCents, 0);
-  const balance = balanceCents(
-    invoice.totalCents,
-    invoice.paidCents,
-    invoice.creditedCents,
-    refunded,
-  );
+  const position = { ...invoice, refundedCents: refunded };
+  const status = effectiveStatus(position, now);
+  const balance = balanceCents(position);
 
   const charges = {
     lineHaulCents: invoice.lineHaulCents,
@@ -371,6 +380,30 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </section>
         )}
 
+        <CustomerCredit
+          invoiceId={invoice.id}
+          customerName={customer?.name ?? null}
+          carryableCents={carryGate.carryableCents}
+          applicableCents={applyGate.applicableCents}
+          balanceCents={applyGate.balanceCents}
+          canWrite={canPay}
+          today={now.toISOString().slice(0, 10)}
+          creditNotes={creditRows
+            .filter((note) => note.voidedAt === null)
+            .map((note) => ({ id: note.id, number: note.number, amountCents: note.amountCents }))}
+          movements={creditMovements.map((movement) => ({
+            id: movement.id,
+            direction: movement.direction,
+            amountCents: movement.amountCents,
+            occurredAt: movement.occurredAt.toISOString(),
+            note: movement.note,
+            invoiceId: movement.invoiceId,
+            invoiceNumber: invoice.number,
+            creditNoteNumber:
+              creditRows.find((note) => note.id === movement.creditNoteId)?.number ?? null,
+          }))}
+        />
+
         <Refunds
           invoiceId={invoice.id}
           refundableCents={refundGate.refundableCents}
@@ -421,7 +454,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
         {canWrite && invoice.status !== 'void' && (
           <section className="border-t border-line pt-5">
-            <VoidInvoice invoiceId={invoice.id} hasPayments={paymentRows.length > 0} />
+            <VoidInvoice
+              invoiceId={invoice.id}
+              blockedReason={voidBlockedReason(invoice, paymentRows.length)}
+            />
           </section>
         )}
       </PageBody>

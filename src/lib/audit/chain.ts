@@ -259,6 +259,9 @@ export const AUDIT = {
   paymentRecorded: 'payment.recorded',
   refundIssued: 'refund.issued',
   refundRemoved: 'refund.removed',
+  creditCarriedForward: 'credit.carried_forward',
+  creditApplied: 'credit.applied',
+  creditMovementRemoved: 'credit.movement.removed',
 
   driverCreated: 'driver.created',
   expenseRecorded: 'expense.recorded',

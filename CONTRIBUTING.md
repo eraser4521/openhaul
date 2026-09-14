@@ -28,10 +28,11 @@ npm run build
 
 ## Where help is most useful
 
-**Carrying an overpayment forward.** The credit note offers the customer two ways to settle money
-owed back: refunded, which is recorded, or applied against their next invoice, which is not. That
-needs a customer-level credit balance rather than a per-invoice one, and something to spend it
-against when the next invoice is raised.
+**A statement of account.** A customer's credit balance is now recorded and spendable, but nothing
+tells the customer about it. The credit note asks them to choose between a refund and carrying it
+forward; once the carrier records that choice there is no document confirming what is being held,
+or what it was later spent on. That is a document kind, a template and a send path, next to the
+ones that already exist.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

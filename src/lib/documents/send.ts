@@ -11,6 +11,7 @@ import {
   drivers as driversTable,
   invoices as invoicesTable,
   loads as loadsTable,
+  refunds as refundsTable,
   settlements as settlementsTable,
   type DocumentKind,
 } from '../db/schema';
@@ -19,7 +20,7 @@ import { blobStore } from '../storage/blob-store';
 import { getOrganization } from '../organization/profile';
 import { compose, attachmentName, type ComposeContext } from '../email/compose';
 import { send, type Attachment } from '../email/transport';
-import { balanceCents } from '../invoices/compute';
+import { balanceCents, sumRefunds } from '../invoices/compute';
 
 /**
  * Sending a stored document.
@@ -234,11 +235,13 @@ export async function draftFor(scoped: ScopedDb, documentId: string): Promise<Se
         context.amountCents = note.amountCents;
         const invoice = await scoped.selectOne('invoices', eq(invoicesTable.id, note.invoiceId));
         if (invoice) {
-          context.balanceCents = balanceCents(
-            invoice.totalCents,
-            invoice.paidCents,
-            invoice.creditedCents,
+          // The note tells the customer what is owed back and offers them the
+          // choice between a refund and carrying it forward, so the figure has
+          // to net off anything already settled either way.
+          const refunded = sumRefunds(
+            await scoped.select('refunds', eq(refundsTable.invoiceId, invoice.id)),
           );
+          context.balanceCents = balanceCents({ ...invoice, refundedCents: refunded });
         }
         await customerContact(note.customerId);
       }

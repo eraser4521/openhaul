@@ -13,6 +13,15 @@ export const INVOICE_STATUSES = [
 ] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
+/**
+ * Which way money moved between an invoice and a customer's credit balance.
+ *
+ * Positive amounts either way; the direction says what happened. Signing the
+ * column instead would let a mistyped minus turn a grant into a spend.
+ */
+export const CREDIT_DIRECTIONS = ['in', 'out'] as const;
+export type CreditDirection = (typeof CREDIT_DIRECTIONS)[number];
+
 export const EXPENSE_CATEGORIES = [
   'fuel',
   'tolls',
@@ -60,6 +69,21 @@ export const invoices = sqliteTable(
      * what the invoice says. Derived from the notes, never incremented.
      */
     creditedCents: money('credited_cents').notNull().default(0),
+    /**
+     * Settled out of a balance the customer already had with the carrier.
+     *
+     * Its own column rather than folded into `paid_cents`, because no money
+     * arrived — saying it did would overstate what was banked this period —
+     * and not into `credited_cents` either, because the charge was not
+     * reduced and no document says it was. Derived from `customer_credits`.
+     */
+    appliedCreditCents: money('applied_credit_cents').notNull().default(0),
+    /**
+     * An overpayment on this invoice moved into the customer's balance rather
+     * than sent back. Settles this invoice the way a refund does, except the
+     * carrier is still holding the money. Derived from `customer_credits`.
+     */
+    carriedForwardCents: money('carried_forward_cents').notNull().default(0),
     currency: currency(),
 
     terms: text('terms', { enum: PAYMENT_TERMS }),
@@ -258,6 +282,76 @@ export const refunds = sqliteTable(
 );
 
 export type Refund = typeof refunds.$inferSelect;
+
+/**
+ * A movement between an invoice and a customer's credit balance.
+ *
+ * The balance itself is not stored anywhere. It is the sum of these rows, for
+ * the same reason `paid_cents` is rebuilt from payments: a running total on
+ * the customer record drifts the first time a movement is corrected, and a
+ * customer's balance drifting is the carrier quietly keeping or giving away
+ * money nobody can account for.
+ *
+ * Every movement names an invoice, which is what makes the ledger answer the
+ * question actually asked a year later — "you kept $500 of ours in March,
+ * where did it go?". `in` is an overpayment carried off that invoice; `out`
+ * is the balance spent against one.
+ */
+export const customerCredits = sqliteTable(
+  'customer_credits',
+  {
+    id: pk(),
+    orgId: orgId(),
+    customerId: text('customer_id').notNull(),
+
+    direction: text('direction', { enum: CREDIT_DIRECTIONS }).notNull(),
+    /** Always positive. `direction` carries the sign. */
+    amountCents: money('amount_cents').notNull(),
+    currency: currency(),
+
+    /**
+     * For `in`, the overpaid invoice the money came off. For `out`, the
+     * invoice it settled. Never null: a movement with no invoice is money
+     * with no account of where it came from or went.
+     */
+    invoiceId: text('invoice_id').notNull(),
+    /** The credit note that put the invoice into overpayment, where one did. */
+    creditNoteId: text('credit_note_id'),
+
+    /** When the carrier decided, which is not when the row was written. */
+    occurredAt: ts('occurred_at').notNull(),
+    note: text('note'),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('customer_credits_org_id_uq').on(t.orgId, t.id),
+    index('customer_credits_customer_idx').on(t.orgId, t.customerId),
+    index('customer_credits_invoice_idx').on(t.orgId, t.invoiceId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'customer_credits_org_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.customerId],
+      foreignColumns: [customers.orgId, customers.id],
+      name: 'customer_credits_customer_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.invoiceId],
+      foreignColumns: [invoices.orgId, invoices.id],
+      name: 'customer_credits_invoice_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.creditNoteId],
+      foreignColumns: [creditNotes.orgId, creditNotes.id],
+      name: 'customer_credits_credit_note_fk',
+    }),
+  ],
+);
+
+export type CustomerCredit = typeof customerCredits.$inferSelect;
 
 /** Driver-incurred costs against a load, with a receipt photo. */
 export const expenses = sqliteTable(

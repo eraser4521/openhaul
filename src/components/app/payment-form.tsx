@@ -123,7 +123,14 @@ export function PaymentForm({ invoiceId, balanceCents, today }: PaymentFormProps
 
 export interface VoidInvoiceProps {
   invoiceId: string;
-  hasPayments: boolean;
+  /**
+   * Why voiding is unavailable, or null when it is.
+   *
+   * A reason rather than a flag: the rules are all about money attached to
+   * the invoice, there is more than one of them, and the screen has no
+   * business restating any of them in its own words.
+   */
+  blockedReason: string | null;
 }
 
 /**
@@ -133,18 +140,13 @@ export interface VoidInvoiceProps {
  * that was sent to a customer and then vanished is exactly what an audit
  * queries.
  */
-export function VoidInvoice({ invoiceId, hasPayments }: VoidInvoiceProps) {
+export function VoidInvoice({ invoiceId, blockedReason }: VoidInvoiceProps) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  if (hasPayments) {
-    return (
-      <p className="text-xs leading-relaxed text-ink-muted">
-        Payments have been recorded against this invoice, so it cannot be voided — that would erase
-        money actually received. Raise a credit instead.
-      </p>
-    );
+  if (blockedReason) {
+    return <p className="text-xs leading-relaxed text-ink-muted">{blockedReason}</p>;
   }
 
   if (!open) {
