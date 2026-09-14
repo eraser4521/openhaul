@@ -241,9 +241,11 @@ export const AUDIT = {
   inspectionStarted: 'inspection.started',
   inspectionFinalized: 'inspection.finalized',
   photoAdded: 'inspection.photo.added',
+  damageAdded: 'inspection.damage.added',
   photoRemoved: 'inspection.photo.removed',
 
   documentFinalized: 'document.finalized',
+  documentIntegrityFailed: 'document.integrity.failed',
   signatureCaptured: 'signature.captured',
 
   invoiceCreated: 'invoice.created',

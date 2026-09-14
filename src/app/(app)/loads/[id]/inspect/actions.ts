@@ -229,7 +229,7 @@ export async function addDamageAction(
     orgId: session.orgId,
     actorId: session.userId,
     actorRole: session.role,
-    action: 'inspection.damage.added',
+    action: AUDIT.damageAdded,
     subject: `inspection:${data.inspectionId}`,
     detail: { damageId: created.id, code, describe: parseDamageCode(code)?.area.label },
   });

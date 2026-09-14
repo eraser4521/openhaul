@@ -3,13 +3,23 @@ import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { AlertTriangle, Check, ClipboardCheck, ScanLine, Wrench } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
-import { loads as loadsTable, vehicles as vehiclesTable, type LoadStatus } from '@/lib/db/schema';
+import {
+  documents as documentsTable,
+  loads as loadsTable,
+  stops as stopsTable,
+  venues as venuesTable,
+  vehicles as vehiclesTable,
+  type LoadStatus,
+} from '@/lib/db/schema';
 import { PageBody, PageHeader } from '@/components/app/page-header';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils/cn';
 import { money, miles, ratePerMile, relativeTime, vinDisplay } from '@/lib/utils/format';
+import { DocumentActions } from '@/components/app/document-actions';
+import { RouteCard } from '@/components/app/route-card';
+import { can } from '@/lib/auth/capabilities';
 
 const STATUS_TONE: Record<LoadStatus, 'neutral' | 'brand' | 'ok' | 'warn' | 'info' | 'danger'> = {
   draft: 'neutral',
@@ -45,7 +55,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function LoadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { db } = await requireSessionOrRedirect();
+  const { session, db } = await requireSessionOrRedirect();
 
   // The scoped client cannot reach another organisation's rows, so a load id
   // guessed from elsewhere simply does not resolve — no separate ownership
@@ -53,7 +63,19 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
   const load = await db.selectOne('loads', eq(loadsTable.id, id));
   if (!load) notFound();
 
-  const vehicles = await db.select('vehicles', eq(vehiclesTable.loadId, load.id));
+  const [vehicles, issuedDocuments, stops] = await Promise.all([
+    db.select('vehicles', eq(vehiclesTable.loadId, load.id)),
+    db.select('documents', eq(documentsTable.loadId, load.id)),
+    db.select('stops', eq(stopsTable.loadId, load.id)),
+  ]);
+
+  const venueFor = async (kind: 'pickup' | 'delivery') => {
+    const stop = stops.find((s) => s.kind === kind);
+    if (!stop?.venueId) return null;
+    return (await db.selectOne('venues', eq(venuesTable.id, stop.venueId))) ?? null;
+  };
+
+  const [pickupVenue, deliveryVenue] = await Promise.all([venueFor('pickup'), venueFor('delivery')]);
 
   const unverifiedVins = vehicles.filter((v) => v.vinCheckDigitValid === false);
   const inoperable = vehicles.filter((v) => v.isInoperable);
@@ -139,6 +161,13 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
           </div>
         )}
 
+        <RouteCard
+          loadId={load.id}
+          pickup={pickupVenue}
+          delivery={deliveryVenue}
+          canEdit={can(session.role, 'load.write')}
+        />
+
         <section>
           <h2 className="mb-3 text-sm font-semibold text-ink">Vehicles</h2>
           <ul className="space-y-2">
@@ -193,6 +222,26 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
             </Card>
           </section>
         )}
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-ink">Documents</h2>
+          <DocumentActions
+            loadId={load.id}
+            canIssue={can(session.role, 'load.write')}
+            documents={[...issuedDocuments]
+              .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+              .map((document) => ({
+                id: document.id,
+                kind: document.kind,
+                title: document.title,
+                sha256: document.sha256,
+                byteSize: document.byteSize,
+                version: document.version,
+                createdAt: document.createdAt,
+                supersedesDocumentId: document.supersedesDocumentId,
+              }))}
+          />
+        </section>
 
         <section>
           <h2 className="mb-3 text-sm font-semibold text-ink">Retention</h2>

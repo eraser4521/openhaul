@@ -8,6 +8,7 @@ import { appendAudit, AUDIT } from '@/lib/audit/chain';
 import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
 import type { ScopedDb } from '@/lib/db/scope';
 import { classifyVin, isValidVin, normalizeVin } from '@/lib/vin';
+import { missingStopFields, readStopParty, saveStop } from '@/lib/loads/route';
 
 export interface LoadActionResult {
   ok: boolean;
@@ -126,6 +127,23 @@ export async function createLoadAction(
 
   const data = parsed.data;
 
+  // A route is optional at this point — vehicles are often booked before the
+  // addresses land — but a half-typed one is a mistake, so it is caught here
+  // rather than at bill-of-lading time.
+  const pickup = readStopParty(formData, 'pickup');
+  const delivery = readStopParty(formData, 'delivery');
+
+  for (const [prefix, party] of [['pickup', pickup], ['delivery', delivery]] as const) {
+    const missing = missingStopFields(party);
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        fieldErrors: { [`${prefix}Name`]: `Still needs ${missing.join(', ')}.` },
+        error: `The ${prefix} address is incomplete: it still needs ${missing.join(', ')}.`,
+      };
+    }
+  }
+
   const [created] = await scoped.insert('loads', {
     number: data.number,
     status: 'draft',
@@ -159,6 +177,9 @@ export async function createLoadAction(
       isInoperable: vehicle.isInoperable ?? false,
     })),
   );
+
+  await saveStop(scoped, created.id, 'pickup', pickup);
+  await saveStop(scoped, created.id, 'delivery', delivery);
 
   await appendAudit({
     orgId: session.orgId,

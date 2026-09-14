@@ -269,10 +269,10 @@ Further reading: [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [DATA_MODEL.md](docs
 
 ## Status
 
-**Working today.** VIN scanning and decode. Loads and vehicles. Organisations and roles. The
-security and audit foundations. The full inspection flow: guided walk-around capture, on-device
+**Working today.** VIN scanning and decode. Loads, vehicles and route. Organisations and roles.
+The security and audit foundations. The full inspection flow: guided walk-around capture, on-device
 compression, AIAG damage coding, signature capture with stroke data, content hashing, and sealing.
-The offline queue behind it. The marketing site.
+Bill of lading and delivery receipt generation. The offline queue behind it. The marketing site.
 
 The inspection path is verified end to end against a running instance — a 2.2 MB photo compresses
 to roughly 300 KB on the device, uploads, and is stored as an immutable original plus a stripped
@@ -280,8 +280,17 @@ derivative and a thumbnail. The signature's `document_sha256` matches the inspec
 exactly, so the signature provably commits to the record that was on screen. Once sealed, both the
 API and the database refuse to change it.
 
-**Not built yet.** BOL and POD PDF generation, invoicing beyond the schema, claims workflow,
-and FMCSA carrier lookup. The data model and compliance groundwork for all of it is in place — see
+The document path is verified the same way. A bill of lading cannot be issued until every vehicle
+has a sealed pickup inspection and the load has an origin and a destination; when something is
+missing the app names the field and cites 49 CFR 373.101 rather than producing a document with
+blanks in it. Issuing renders the PDF, hashes it, and stores the bytes — those bytes are the
+record, not the rows they came from. Reissuing supersedes rather than replaces, so the copy
+somebody signed stays retrievable. Every view re-checks the stored file against the hash recorded
+at signing; a single flipped byte is refused with a 409 and written to the audit chain instead of
+being served.
+
+**Not built yet.** Invoicing beyond the schema, claims workflow, and FMCSA carrier lookup. The data
+model and compliance groundwork for all of it is in place — see
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---

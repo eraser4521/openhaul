@@ -28,19 +28,22 @@ npm run build
 
 ## Where help is most useful
 
-**The inspection capture flow.** The schema, the AIAG code tables and the photo requirements are in
-place; the guided walk-around UI is the gap. This is the highest-value feature in the project,
-because it is exactly where the paid tools visibly fail their own users — duplicated photos,
-disappearing queues, crashes mid-BOL, one photo per side.
+**Invoicing.** The schema is there; the workflow is not. An invoice should be derivable from a
+delivered load and its signed delivery receipt without retyping anything.
 
-**BOL and POD generation.** Frozen PDF bytes with a content hash. The signature evidence model is
-already built.
+**The claims workflow.** A claim has a nine-month window and needs to assemble the inspection
+photographs, the condition report and both documents into something a carrier can actually send.
+The evidence is all retained and hash-linked already — this is about the path through it.
 
-**The offline sync queue.** Local-first capture with a durable outbox, resumable photo upload, and
-409-plus-amendment on conflict rather than a merge.
+**FMCSA carrier lookup.** USDOT and MC numbers, authority status and insurance on file, so a broker
+is not verifying a carrier by hand.
 
 **Load import.** CSV and parsed dispatch sheets. This meets carriers where their loads already are
 without needing a load board of our own.
+
+**Document templates.** The bill of lading renders from a fixed layout. Carriers want their own
+letterhead and their own accessorial lines without forking the regulatory content, which has to
+stay where it is.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

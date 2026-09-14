@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { VinInput } from '@/components/scanner/vin-input';
+import { StopFields } from '@/components/app/stop-fields';
 import { classifyVin, decodeModelYear } from '@/lib/vin';
 import { cn } from '@/lib/utils/cn';
 
@@ -180,6 +181,26 @@ export function LoadForm({ suggestedNumber }: { suggestedNumber: string }) {
             trailing={<span className="text-xs">mi</span>}
             error={state?.fieldErrors?.distanceMiles}
           />
+        </div>
+      </Card>
+
+      <Card>
+        <div className="border-b border-line px-5 py-4">
+          <h2 className="text-sm font-semibold text-ink">Route</h2>
+          <p className="mt-0.5 text-xs text-ink-secondary">
+            Optional now, required before a bill of lading can be issued — the regulation names the
+            origin and destination as mandatory on the document.
+          </p>
+        </div>
+        <div className="divide-y divide-line">
+          <div className="space-y-4 p-5">
+            <h3 className="text-xs font-medium tracking-wide text-ink-muted uppercase">Pickup</h3>
+            <StopFields prefix="pickup" error={state?.fieldErrors?.pickupName} />
+          </div>
+          <div className="space-y-4 p-5">
+            <h3 className="text-xs font-medium tracking-wide text-ink-muted uppercase">Delivery</h3>
+            <StopFields prefix="delivery" error={state?.fieldErrors?.deliveryName} />
+          </div>
         </div>
       </Card>
 
