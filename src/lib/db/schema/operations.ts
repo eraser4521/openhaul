@@ -110,6 +110,8 @@ export const PAYMENT_TERMS = [
   '60_days',
   'other',
 ] as const;
+export type PaymentTerms = (typeof PAYMENT_TERMS)[number];
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const STOP_KINDS = ['pickup', 'delivery'] as const;
 export type StopKind = (typeof STOP_KINDS)[number];

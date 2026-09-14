@@ -13,6 +13,7 @@ import { appendAudit, AUDIT } from '@/lib/audit/chain';
 import { generateDocument, type DocumentKind } from '@/lib/documents/generate';
 import type { BolRequirement } from '@/lib/documents/bol';
 import { missingStopFields, readStopParty, saveStop } from '@/lib/loads/route';
+import { isBlankCustomer, readCustomer, upsertCustomer } from '@/lib/customers/upsert';
 
 export interface DocumentResult {
   ok: boolean;
@@ -152,6 +153,44 @@ export async function saveRouteAction(loadId: string, formData: FormData): Promi
 
   await saveStop(db, loadId, 'pickup', pickup);
   await saveStop(db, loadId, 'delivery', delivery);
+
+  revalidatePath(`/loads/${loadId}`);
+  return { ok: true };
+}
+
+/**
+ * Sets or corrects the party that pays.
+ *
+ * Separate from load creation for the same reason the route is: the broker's
+ * billing details often arrive with the rate confirmation, after the vehicles
+ * are already booked.
+ */
+export async function saveBillToAction(loadId: string, formData: FormData): Promise<RouteResult> {
+  let context;
+  try {
+    context = await requireCapability('customer.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const { db } = context;
+
+  const load = await db.selectOne('loads', eq(loadsTable.id, loadId));
+  if (!load) return { ok: false, error: 'No such load.' };
+
+  const input = readCustomer(formData);
+  if (isBlankCustomer(input)) {
+    return { ok: false, error: 'Give the customer a name — it is what the invoice is addressed to.' };
+  }
+
+  const customerId = await upsertCustomer(db, input);
+  if (!customerId) return { ok: false, error: 'The customer could not be saved.' };
+
+  await db.update('loads', eq(loadsTable.id, loadId), {
+    customerId,
+    // Terms follow the customer unless the load already carries its own.
+    paymentTerms: load.paymentTerms ?? input.defaultPaymentTerms ?? null,
+  });
 
   revalidatePath(`/loads/${loadId}`);
   return { ok: true };

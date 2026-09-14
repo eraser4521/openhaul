@@ -1,22 +1,20 @@
 import 'server-only';
-import { createHash } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import {
   damages as damagesTable,
   inspections as inspectionsTable,
   inspectionPhotos as photosTable,
   loads as loadsTable,
-  organizations,
   stops as stopsTable,
   customers as customersTable,
-  documents as documentsTable,
   vehicles as vehiclesTable,
   venues as venuesTable,
 } from '../db/schema';
-import { db } from '../db/client';
 import type { ScopedDb } from '../db/scope';
+import { getOrganization } from '../organization/profile';
 import { blobStore } from '../storage/blob-store';
 import { signaturesFor } from '../inspections/finalize';
+import { storeDocument } from './store';
 import {
   checkBolRequirements,
   renderBol,
@@ -85,11 +83,7 @@ export async function buildDocumentInput(
   const load = await scoped.selectOne('loads', eq(loadsTable.id, loadId));
   if (!load) return { error: 'No such load.' };
 
-  const [org] = await db
-    .select()
-    .from(organizations)
-    .where(eq(organizations.id, scoped.orgId))
-    .limit(1);
+  const org = await getOrganization(scoped.orgId);
   if (!org) return { error: 'The organisation record is missing.' };
 
   const [vehicles, stops, customer] = await Promise.all([
@@ -295,19 +289,8 @@ export async function generateDocument(options: {
     };
   }
 
-  const bytes = Buffer.from(await renderBol(assembled.input));
-  const sha256 = createHash('sha256').update(bytes).digest('hex');
-
-  const stored = await blobStore().put(bytes, 'application/pdf', 'documents');
-
-  const previousVersion = options.supersedesDocumentId
-    ? (await options.scoped.selectOne(
-        'documents',
-        eq(documentsTable.id, options.supersedesDocumentId),
-      ))?.version ?? 0
-    : 0;
-
-  const [row] = await options.scoped.insert('documents', {
+  const stored = await storeDocument({
+    scoped: options.scoped,
     kind: options.kind,
     loadId: options.loadId,
     subject: `load:${options.loadId}`,
@@ -315,17 +298,11 @@ export async function generateDocument(options: {
       options.kind === 'bol'
         ? `Bill of lading ${options.documentNumber}`
         : `Delivery receipt ${options.documentNumber}`,
-    storageKey: stored.key,
-    sha256,
-    byteSize: bytes.byteLength,
-    contentType: 'application/pdf',
-    version: previousVersion + 1,
+    bytes: await renderBol(assembled.input),
     supersedesDocumentId: options.supersedesDocumentId ?? null,
-    // Frozen immediately. The append-only trigger refuses any later edit.
-    finalizedAt: new Date(),
   });
 
-  if (!row) return { ok: false, error: 'The document could not be stored.' };
+  if ('error' in stored) return { ok: false, error: stored.error };
 
-  return { ok: true, documentId: row.id, sha256 };
+  return { ok: true, documentId: stored.documentId, sha256: stored.sha256 };
 }

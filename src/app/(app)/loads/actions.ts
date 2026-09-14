@@ -9,6 +9,7 @@ import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
 import type { ScopedDb } from '@/lib/db/scope';
 import { classifyVin, isValidVin, normalizeVin } from '@/lib/vin';
 import { missingStopFields, readStopParty, saveStop } from '@/lib/loads/route';
+import { readCustomer, upsertCustomer } from '@/lib/customers/upsert';
 
 export interface LoadActionResult {
   ok: boolean;
@@ -144,8 +145,16 @@ export async function createLoadAction(
     }
   }
 
+  // The customer is upserted before the load so the load can point at it. A
+  // load booked without one is fine; it just cannot be invoiced until it has
+  // somebody to address the invoice to.
+  const customerInput = readCustomer(formData);
+  const customerId = await upsertCustomer(scoped, customerInput);
+
   const [created] = await scoped.insert('loads', {
     number: data.number,
+    customerId,
+    paymentTerms: customerInput.defaultPaymentTerms ?? null,
     status: 'draft',
     transportType: data.transportType,
     rateCents: data.rate,

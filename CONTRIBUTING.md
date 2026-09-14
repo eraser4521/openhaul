@@ -28,8 +28,11 @@ npm run build
 
 ## Where help is most useful
 
-**Invoicing.** The schema is there; the workflow is not. An invoice should be derivable from a
-delivered load and its signed delivery receipt without retyping anything.
+**Driver settlements.** The schema is there; the workflow is not. Driver pay is a share of load
+revenue net of broker fees, and the expenses and settlements tables already model it.
+
+**Credit notes.** An issued invoice can be voided only while no money has landed against it.
+Once a payment exists the correct instrument is a credit, and there is nowhere to raise one.
 
 **The claims workflow.** A claim has a nine-month window and needs to assemble the inspection
 photographs, the condition report and both documents into something a carrier can actually send.

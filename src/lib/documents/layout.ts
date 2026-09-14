@@ -151,6 +151,21 @@ export class DocBuilder {
     this.cursor -= points;
   }
 
+  /**
+   * Puts the cursor back where it was.
+   *
+   * Used to draw a second thing on the same line as the first — a right
+   * aligned amount beside its label, say — without a second layout pass.
+   */
+  moveTo(y: number): void {
+    this.cursor = y;
+  }
+
+  /** A filled rectangle anywhere on the page, unlike `panel`'s full width. */
+  fill(box: { x: number; y: number; width: number; height: number }, color = PANEL): void {
+    this.page.drawRectangle({ ...box, color });
+  }
+
   /** Splits text to fit a width, respecting explicit newlines. */
   wrap(text: string, size: number, width: number, font = this.fonts.regular): string[] {
     const lines: string[] = [];

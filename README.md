@@ -269,10 +269,12 @@ Further reading: [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [DATA_MODEL.md](docs
 
 ## Status
 
-**Working today.** VIN scanning and decode. Loads, vehicles and route. Organisations and roles.
-The security and audit foundations. The full inspection flow: guided walk-around capture, on-device
-compression, AIAG damage coding, signature capture with stroke data, content hashing, and sealing.
-Bill of lading and delivery receipt generation. The offline queue behind it. The marketing site.
+**Working today.** VIN scanning and decode. Loads, vehicles, route and customers. Organisations
+and roles. The security and audit foundations. The full inspection flow: guided walk-around
+capture, on-device compression, AIAG damage coding, signature capture with stroke data, content
+hashing, and sealing. Bill of lading and delivery receipt generation. Invoicing, from raising an
+invoice off a delivered load through to recording payment. The offline queue behind it. The
+marketing site.
 
 The inspection path is verified end to end against a running instance — a 2.2 MB photo compresses
 to roughly 300 KB on the device, uploads, and is stored as an immutable original plus a stripped
@@ -289,9 +291,19 @@ somebody signed stays retrievable. Every view re-checks the stored file against 
 at signing; a single flipped byte is refused with a 409 and written to the audit chain instead of
 being served.
 
-**Not built yet.** Invoicing beyond the schema, claims workflow, and FMCSA carrier lookup. The data
-model and compliance groundwork for all of it is in place — see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Invoicing follows the same shape. An invoice is raised from a load that already has a signed
+delivery receipt, priced from the rate on file, and it says out loud which figure it took — the
+carrier rate or the customer tariff — because billing the wrong one is a five-figure mistake. It
+is editable while it is a draft and frozen the moment it is issued, at which point the payment
+clock starts from the terms. The PDF cites the bill of lading and delivery receipt by number and
+hash, so a broker's accounts department can check the attachments rather than trust them, and a
+factored invoice carries its Notice of Assignment on the face where a factor will accept it.
+Payments are recorded against the invoice and the paid total is rebuilt from those rows every
+time, so a corrected payment cannot leave a stale figure claiming an invoice is settled. The
+receivables view ages by how late payment is, not how old the invoice is.
+
+**Not built yet.** Claims workflow and FMCSA carrier lookup. The data model and compliance
+groundwork for both is in place — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

@@ -7,6 +7,9 @@ import { PageBody, PageHeader } from '@/components/app/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { relativeTime } from '@/lib/utils/format';
+import { CompanyForm } from '@/components/app/company-form';
+import { can } from '@/lib/auth/capabilities';
+import { getOrganization } from '@/lib/organization/profile';
 import { VerifyChainButton } from './verify-chain';
 
 export const metadata = { title: 'Settings' };
@@ -19,11 +22,12 @@ function hours(ms: number): string {
 export default async function SettingsPage() {
   const { session } = await requireSessionOrRedirect();
 
-  const [mfaEnabled, recoveryLeft, sessions, head] = await Promise.all([
+  const [mfaEnabled, recoveryLeft, sessions, head, org] = await Promise.all([
     isMfaEnabled(session.userId),
     remainingRecoveryCodes(session.userId),
     listSessions(session.userId),
     chainHead(),
+    getOrganization(session.orgId),
   ]);
 
   const policy = SESSION_POLICY[session.role];
@@ -33,6 +37,25 @@ export default async function SettingsPage() {
       <PageHeader title="Settings" description={`${session.orgName} · signed in as ${session.email}`} />
 
       <PageBody className="max-w-3xl space-y-6">
+        {org && (
+          <CompanyForm
+            canEdit={can(session.role, 'settings.write')}
+            values={{
+              legalName: org.legalName,
+              dbaName: org.dbaName,
+              addressLine1: org.addressLine1,
+              addressLine2: org.addressLine2,
+              city: org.city,
+              state: org.state,
+              postalCode: org.postalCode,
+              phone: org.phone,
+              email: org.email,
+              usdotNumber: org.usdotNumber,
+              mcNumber: org.mcNumber,
+            }}
+          />
+        )}
+
         <Card>
           <div className="border-b border-line px-5 py-4">
             <h2 className="text-sm font-semibold text-ink">Two-factor authentication</h2>

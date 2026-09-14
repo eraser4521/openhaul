@@ -4,7 +4,9 @@ import { eq } from 'drizzle-orm';
 import { AlertTriangle, Check, ClipboardCheck, ScanLine, Wrench } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import {
+  customers as customersTable,
   documents as documentsTable,
+  invoices as invoicesTable,
   loads as loadsTable,
   stops as stopsTable,
   venues as venuesTable,
@@ -19,6 +21,7 @@ import { cn } from '@/lib/utils/cn';
 import { money, miles, ratePerMile, relativeTime, vinDisplay } from '@/lib/utils/format';
 import { DocumentActions } from '@/components/app/document-actions';
 import { RouteCard } from '@/components/app/route-card';
+import { BillToCard } from '@/components/app/bill-to-card';
 import { can } from '@/lib/auth/capabilities';
 
 const STATUS_TONE: Record<LoadStatus, 'neutral' | 'brand' | 'ok' | 'warn' | 'info' | 'danger'> = {
@@ -63,11 +66,19 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
   const load = await db.selectOne('loads', eq(loadsTable.id, id));
   if (!load) notFound();
 
-  const [vehicles, issuedDocuments, stops] = await Promise.all([
+  const [vehicles, issuedDocuments, stops, loadInvoices, customer] = await Promise.all([
     db.select('vehicles', eq(vehiclesTable.loadId, load.id)),
     db.select('documents', eq(documentsTable.loadId, load.id)),
     db.select('stops', eq(stopsTable.loadId, load.id)),
+    db.select('invoices', eq(invoicesTable.loadId, load.id)),
+    load.customerId
+      ? db.selectOne('customers', eq(customersTable.id, load.customerId))
+      : Promise.resolve(null),
   ]);
+
+  // A voided invoice leaves the load billable again, so only a live one counts
+  // as "this load is already invoiced".
+  const liveInvoice = loadInvoices.find((invoice) => invoice.status !== 'void') ?? null;
 
   const venueFor = async (kind: 'pickup' | 'delivery') => {
     const stop = stops.find((s) => s.kind === kind);
@@ -166,6 +177,18 @@ export default async function LoadDetailPage({ params }: { params: Promise<{ id:
           pickup={pickupVenue}
           delivery={deliveryVenue}
           canEdit={can(session.role, 'load.write')}
+        />
+
+        <BillToCard
+          loadId={load.id}
+          customer={customer}
+          invoice={
+            liveInvoice
+              ? { id: liveInvoice.id, number: liveInvoice.number, status: liveInvoice.status }
+              : null
+          }
+          canEdit={can(session.role, 'customer.write')}
+          canInvoice={can(session.role, 'invoice.write')}
         />
 
         <section>

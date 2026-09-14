@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { VinInput } from '@/components/scanner/vin-input';
 import { StopFields } from '@/components/app/stop-fields';
+import { CustomerFields } from '@/components/app/customer-fields';
 import { classifyVin, decodeModelYear } from '@/lib/vin';
 import { cn } from '@/lib/utils/cn';
 
@@ -181,6 +182,19 @@ export function LoadForm({ suggestedNumber }: { suggestedNumber: string }) {
             trailing={<span className="text-xs">mi</span>}
             error={state?.fieldErrors?.distanceMiles}
           />
+        </div>
+      </Card>
+
+      <Card>
+        <div className="border-b border-line px-5 py-4">
+          <h2 className="text-sm font-semibold text-ink">Bill to</h2>
+          <p className="mt-0.5 text-xs text-ink-secondary">
+            Optional now, required before an invoice can be raised. Details given here are kept
+            against the customer and reused on the next load.
+          </p>
+        </div>
+        <div className="p-5">
+          <CustomerFields error={state?.fieldErrors?.customerName} />
         </div>
       </Card>
 

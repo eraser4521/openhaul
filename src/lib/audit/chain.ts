@@ -249,11 +249,14 @@ export const AUDIT = {
   signatureCaptured: 'signature.captured',
 
   invoiceCreated: 'invoice.created',
+  invoiceIssued: 'invoice.issued',
   invoiceVoided: 'invoice.voided',
   paymentRecorded: 'payment.recorded',
 
   claimFiled: 'claim.filed',
   claimStatusChanged: 'claim.status.changed',
+
+  settingsChanged: 'settings.changed',
 
   piiDecrypted: 'pii.decrypted',
   piiErased: 'pii.erased',
