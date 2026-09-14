@@ -184,8 +184,17 @@ function extractResults(payload: unknown): VpicResult[] {
   return results.filter((row): row is VpicResult => typeof row === 'object' && row !== null);
 }
 
-/** Decodes a single VIN via vPIC's flat-format endpoint. */
-export async function decodeVin(vin: string, options: DecodeOptions = {}): Promise<DecodedVehicle> {
+/**
+ * Decodes a single VIN, returning both the mapped fields and the raw vPIC row.
+ *
+ * The raw row is what callers should cache: vPIC returns around 140 fields and
+ * this app currently maps a fraction of them, so keeping the original means
+ * surfacing GVWR or axle configuration later needs no re-fetch.
+ */
+export async function decodeVinDetailed(
+  vin: string,
+  options: DecodeOptions = {},
+): Promise<{ vehicle: DecodedVehicle; raw: VpicResult }> {
   const params = new URLSearchParams({ format: 'json' });
   if (options.modelYear !== undefined) {
     params.set('modelyear', String(options.modelYear));
@@ -202,7 +211,13 @@ export async function decodeVin(vin: string, options: DecodeOptions = {}): Promi
   if (!first) {
     throw new Error('vPIC returned no results for this VIN');
   }
-  return mapVpicResult(vin, first);
+  return { vehicle: mapVpicResult(vin, first), raw: first };
+}
+
+/** Decodes a single VIN via vPIC's flat-format endpoint. */
+export async function decodeVin(vin: string, options: DecodeOptions = {}): Promise<DecodedVehicle> {
+  const { vehicle } = await decodeVinDetailed(vin, options);
+  return vehicle;
 }
 
 /**

@@ -1,0 +1,155 @@
+import { CheckCircle2, Link2, ShieldAlert, ShieldCheck, Smartphone } from 'lucide-react';
+import { requireSessionOrRedirect } from '@/lib/auth/guard';
+import { chainHead } from '@/lib/audit/chain';
+import { isMfaEnabled, remainingRecoveryCodes } from '@/lib/auth/mfa';
+import { listSessions, SESSION_POLICY } from '@/lib/auth/session';
+import { PageBody, PageHeader } from '@/components/app/page-header';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { relativeTime } from '@/lib/utils/format';
+import { VerifyChainButton } from './verify-chain';
+
+export const metadata = { title: 'Settings' };
+
+function hours(ms: number): string {
+  const h = ms / 3_600_000;
+  return h >= 24 ? `${Math.round(h / 24)} days` : `${Math.round(h)} hours`;
+}
+
+export default async function SettingsPage() {
+  const { session } = await requireSessionOrRedirect();
+
+  const [mfaEnabled, recoveryLeft, sessions, head] = await Promise.all([
+    isMfaEnabled(session.userId),
+    remainingRecoveryCodes(session.userId),
+    listSessions(session.userId),
+    chainHead(),
+  ]);
+
+  const policy = SESSION_POLICY[session.role];
+
+  return (
+    <>
+      <PageHeader title="Settings" description={`${session.orgName} · signed in as ${session.email}`} />
+
+      <PageBody className="max-w-3xl space-y-6">
+        <Card>
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="text-sm font-semibold text-ink">Two-factor authentication</h2>
+          </div>
+          <div className="p-5">
+            {mfaEnabled ? (
+              <>
+                <p className="flex items-center gap-2 text-sm text-ok">
+                  <ShieldCheck className="size-4 shrink-0" aria-hidden />
+                  Enabled
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-ink-secondary">
+                  {recoveryLeft} recovery code{recoveryLeft === 1 ? '' : 's'} remaining.
+                  {recoveryLeft < 3 && ' Generate a fresh set soon.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="flex items-center gap-2 text-sm text-warn">
+                  <ShieldAlert className="size-4 shrink-0" aria-hidden />
+                  Not enabled
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-ink-secondary">
+                  Two-factor is what makes long driver sessions safe. Without it, anything that
+                  moves money or reveals personal data has no second check behind it.
+                </p>
+              </>
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="text-sm font-semibold text-ink">Active sessions</h2>
+            <p className="mt-1 text-xs text-ink-secondary">
+              Your role signs out after {hours(policy.idleMs)} idle, and always within{' '}
+              {hours(policy.absoluteMs)}.
+            </p>
+          </div>
+          <ul className="divide-y divide-line">
+            {sessions.map((item) => (
+              <li key={item.tokenHash} className="flex items-start gap-3 px-5 py-4">
+                <Smartphone className="mt-0.5 size-4 shrink-0 text-ink-muted" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-ink">{item.deviceLabel ?? 'Unnamed device'}</p>
+                  <p className="mt-0.5 truncate text-xs text-ink-muted">
+                    {item.ipCreated ?? 'unknown address'} · last seen{' '}
+                    {relativeTime(item.lastSeenAt)}
+                  </p>
+                </div>
+                {item.tokenHash === undefined && null}
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card>
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="text-sm font-semibold text-ink">Audit log integrity</h2>
+            <p className="mt-1 text-xs leading-relaxed text-ink-secondary">
+              Every entry commits to the hash of the one before it, so a deleted or edited row
+              breaks the chain at a point verification can name.
+            </p>
+          </div>
+          <div className="space-y-4 p-5">
+            <dl className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-ink-muted">Entries</dt>
+                <dd className="mt-0.5 text-sm text-ink tabular-nums">{head.seq}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="text-xs text-ink-muted">Head hash</dt>
+                <dd className="mt-0.5 truncate font-mono text-xs text-ink">
+                  {head.hash.slice(0, 24)}…
+                </dd>
+              </div>
+            </dl>
+
+            <VerifyChainButton />
+
+            <p className="flex items-start gap-1.5 text-xs leading-relaxed text-ink-muted">
+              <Link2 className="mt-px size-3.5 shrink-0" aria-hidden />
+              A chain that only exists inside the database it protects proves little. Export the
+              head hash somewhere you do not control if you need it to stand up later.
+            </p>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="text-sm font-semibold text-ink">Your data</h2>
+          </div>
+          <div className="space-y-3 p-5 text-xs leading-relaxed text-ink-secondary">
+            <p className="flex items-start gap-2">
+              <CheckCircle2 className="mt-px size-3.5 shrink-0 text-ok" aria-hidden />
+              This instance stores everything in its own database. Nothing is sent anywhere else
+              except the VIN lookups you trigger, which go to NHTSA.
+            </p>
+            <p className="flex items-start gap-2">
+              <CheckCircle2 className="mt-px size-3.5 shrink-0 text-ok" aria-hidden />
+              Personal data is sealed per subject, so an erasure request can destroy one person&rsquo;s
+              key without touching the bills of lading you are required to keep.
+            </p>
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              <Badge tone="neutral" size="sm">
+                AGPL-3.0
+              </Badge>
+              <Badge tone="neutral" size="sm">
+                Self-hosted
+              </Badge>
+              <Badge tone="neutral" size="sm">
+                No telemetry
+              </Badge>
+            </div>
+          </div>
+        </Card>
+      </PageBody>
+    </>
+  );
+}

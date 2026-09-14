@@ -78,6 +78,8 @@ function preferredDevice(devices: CameraDevice[]): CameraDevice | null {
 export function useCamera(): UseCameraResult {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  /** Ensures the ultra-wide correction below runs at most once per mount. */
+  const lensCorrectedRef = useRef(false);
 
   const [active, setActive] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -94,6 +96,8 @@ export function useCamera(): UseCameraResult {
     setActive(false);
     setTorchOn(false);
   }, []);
+
+  const startRef = useRef<(deviceId?: string) => Promise<void>>(async () => {});
 
   const start = useCallback(
     async (deviceId?: string) => {
@@ -157,13 +161,30 @@ export function useCamera(): UseCameraResult {
         // Labels are empty until permission has been granted once, so this
         // runs after getUserMedia rather than before.
         const all = await navigator.mediaDevices.enumerateDevices();
-        setDevices(
-          all
-            .filter((d) => d.kind === 'videoinput')
-            .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Camera ${i + 1}` })),
-        );
+        const videoInputs = all
+          .filter((d) => d.kind === 'videoinput')
+          .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Camera ${i + 1}` }));
+        setDevices(videoInputs);
 
         setActive(true);
+
+        // If the browser handed us an ultra-wide, switch once to a lens that
+        // can actually resolve a barcode. Guarded so this can never loop:
+        // the retry passes an explicit deviceId, which skips this branch.
+        if (!deviceId && !lensCorrectedRef.current) {
+          lensCorrectedRef.current = true;
+          const activeLabel = track?.getSettings().deviceId
+            ? (videoInputs.find((d) => d.deviceId === track.getSettings().deviceId)?.label ?? '')
+            : '';
+
+          if (/ultra|wide|telephoto|depth/i.test(activeLabel)) {
+            const better = preferredDevice(videoInputs);
+            if (better && better.deviceId !== track?.getSettings().deviceId) {
+              await startRef.current(better.deviceId);
+              return;
+            }
+          }
+        }
       } catch (caught) {
         setError(classifyError(caught));
         stop();
@@ -173,6 +194,8 @@ export function useCamera(): UseCameraResult {
     },
     [stop],
   );
+
+  startRef.current = start;
 
   const selectDevice = useCallback(
     async (deviceId: string) => {
@@ -187,8 +210,11 @@ export function useCamera(): UseCameraResult {
     if (!track || !capabilities.torch) return;
     const next = !torchOn;
     try {
-      // `torch` is not in the TypeScript DOM lib.
-      await track.applyConstraints({ advanced: [{ torch: next }] } as MediaTrackConstraints);
+      // `torch` is a Chromium extension that the TypeScript DOM lib does not
+      // model, so the constraint is widened through `unknown`.
+      await track.applyConstraints({
+        advanced: [{ torch: next }],
+      } as unknown as MediaTrackConstraints);
       setTorchOn(next);
     } catch {
       setCapabilities((c) => ({ ...c, torch: false }));
