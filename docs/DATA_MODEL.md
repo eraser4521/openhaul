@@ -59,12 +59,20 @@ Roles are `owner`, `dispatcher`, `driver`, `accounting`. The capability matrix i
 | `esign_consents` | ESIGN consent with the disclosure stored by version and hash, so the exact text shown is reproducible years later |
 | `monitoring_consents` | Driver location-monitoring notice, same versioned pattern |
 
-> **Schema only.** None of these four tables has code behind it yet. `pii_vault` and
-> `subject_keys` are the design erasure will be built on, not a description of what the
-> application currently does — today the only encrypted field anywhere is the MFA secret.
+> `esign_consents` and `monitoring_consents` are schema only. ESIGN consent is captured in
+> practice on `signature_events`, which stores the exact wording and its hash with every
+> signature; these two tables are a more general design nothing uses yet.
 
 The separation exists so an erasure request can destroy one person's key while the bill of lading,
 its content hash and the audit chain stay intact and valid.
+
+The key in `subject_keys.wrappedDek` is **random, not derived**. A key derived from the root with
+HKDF could be re-derived by anyone holding the root, so there would be nothing to destroy; a random
+key stored only in wrapped form can be. Erasure overwrites that one column with a sentinel and
+stamps the tombstone. The ciphertext in `pii_vault` is deliberately left in place — overwriting it
+would leave the old bytes in free pages and the WAL anyway, and the row's survival is what shows
+nothing was quietly rewritten. `cdlBlindIndex` **is** cleared, because an HMAC of the licence number
+outlives the key and would otherwise let a guess be confirmed.
 
 `pii_vault.cdlBlindIndex` is a truncated, org-scoped HMAC for exact-match lookup. There is
 deliberately no equivalent for date of birth or financial identifiers — those domains are small

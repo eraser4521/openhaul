@@ -236,6 +236,183 @@ export function envelopeVersion(envelope: string): number | null {
 }
 
 /* -------------------------------------------------------------------------
+ * Per-subject keys
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Envelope encryption, and why it is not HKDF.
+ *
+ * Everything above derives its key from the root with HKDF. That is right for
+ * data the carrier must always be able to read, and exactly wrong for personal
+ * data, because a derived key cannot be destroyed: anyone holding the root can
+ * re-derive `HKDF(root, subject)` forever, so there would be nothing to delete
+ * and an erasure request could not be satisfied.
+ *
+ * So each data subject gets a **random** key, stored only in wrapped form.
+ * Destroying that one stored value is what makes every ciphertext for that
+ * person permanently unreadable, while the bill of lading, its content hash
+ * and the audit chain stay exactly as they were.
+ *
+ * The wrapped key is versioned and the field ciphertexts are not. Rotating the
+ * root therefore re-wraps one short string per subject and never rewrites a
+ * single field — which is the other reason this shape is worth the extra
+ * indirection.
+ */
+
+/** Format version of a DEK-sealed field. Bumped only if the AAD shape changes. */
+const DEK_FORMAT = 1;
+
+/** Label on a DEK-sealed envelope, so it can never be fed to `decryptField`. */
+const DEK_LABEL = 'k1';
+
+const SUBJECT_DEK_PURPOSE = 'subject:dek-wrap';
+
+/**
+ * What a destroyed key leaves behind.
+ *
+ * The row stays so the tombstone can prove a key existed and when it was
+ * destroyed; `wrappedDek` is not nullable precisely so this cannot be confused
+ * with a key that was never written.
+ */
+export const DESTROYED_KEY = 'destroyed';
+
+export class KeyDestroyedError extends Error {
+  constructor(subjectId: string) {
+    super(`subject key destroyed: ${subjectId}`);
+    this.name = 'KeyDestroyedError';
+  }
+}
+
+export interface SubjectRef {
+  orgId: string;
+  subjectId: string;
+}
+
+/** A fresh data key. Random, never derived — see the note above. */
+export function generateDek(): Buffer {
+  return randomBytes(KEY_BYTES);
+}
+
+const wrapRef = (ref: SubjectRef): FieldRef => ({
+  orgId: ref.orgId,
+  table: 'subject_keys',
+  column: 'wrapped_dek',
+  rowId: ref.subjectId,
+});
+
+/** Seals a data key under the root. The envelope names the root version. */
+export function wrapDek(ref: SubjectRef, dek: Buffer, ring = keyring()): string {
+  if (dek.length !== KEY_BYTES) throw new CryptoConfigError('data key must be 32 bytes');
+
+  const version = ring.current;
+  const iv = randomBytes(IV_BYTES);
+
+  const cipher = createCipheriv(ALGORITHM, subkey(ring, version, SUBJECT_DEK_PURPOSE), iv, {
+    authTagLength: TAG_BYTES,
+  });
+  cipher.setAAD(additionalData(wrapRef(ref), version));
+
+  const wrapped = Buffer.concat([cipher.update(dek), cipher.final()]);
+  return `v${version}:${b64(iv)}:${b64(cipher.getAuthTag())}:${b64(wrapped)}`;
+}
+
+export function unwrapDek(ref: SubjectRef, wrapped: string, ring = keyring()): Buffer {
+  // Distinguished from a malformed envelope on purpose: "this person was
+  // erased" and "this ciphertext is broken" are different answers, and only
+  // one of them is a bug.
+  if (wrapped === DESTROYED_KEY) throw new KeyDestroyedError(ref.subjectId);
+
+  const parts = wrapped.split(':');
+  if (parts.length !== 4) throw new DecryptionError('malformed key envelope');
+
+  const [label, ivPart, tagPart, ctPart] = parts as [string, string, string, string];
+  const match = /^v(\d+)$/.exec(label);
+  if (!match?.[1]) throw new DecryptionError('bad key version label');
+
+  const version = Number.parseInt(match[1], 10);
+  const iv = unb64(ivPart);
+  const tag = unb64(tagPart);
+  if (iv.length !== IV_BYTES) throw new DecryptionError('bad iv length');
+  if (tag.length !== TAG_BYTES) throw new DecryptionError('bad auth tag length');
+
+  const decipher = createDecipheriv(ALGORITHM, subkey(ring, version, SUBJECT_DEK_PURPOSE), iv, {
+    authTagLength: TAG_BYTES,
+  });
+  decipher.setAAD(additionalData(wrapRef(ref), version));
+  decipher.setAuthTag(tag);
+
+  let dek: Buffer;
+  try {
+    dek = Buffer.concat([decipher.update(unb64(ctPart)), decipher.final()]);
+  } catch {
+    throw new DecryptionError('authentication failed');
+  }
+
+  if (dek.length !== KEY_BYTES) throw new DecryptionError('unwrapped key is the wrong length');
+  return dek;
+}
+
+/**
+ * Re-seals a data key under the current root version.
+ *
+ * The whole cost of a root rotation: one short string per subject. No field
+ * ciphertext is touched, because none of them were sealed with the root.
+ */
+export function rewrapDek(ref: SubjectRef, wrapped: string, ring = keyring()): string {
+  const dek = unwrapDek(ref, wrapped, ring);
+  try {
+    return wrapDek(ref, dek, ring);
+  } finally {
+    dek.fill(0);
+  }
+}
+
+export interface VaultFieldRef extends SubjectRef {
+  /** Column in `pii_vault`, so one field's ciphertext cannot be moved to another. */
+  column: string;
+}
+
+const vaultRef = (ref: VaultFieldRef): FieldRef => ({
+  orgId: ref.orgId,
+  table: 'pii_vault',
+  column: ref.column,
+  rowId: ref.subjectId,
+});
+
+/** Seals one personal field under that subject's data key. */
+export function sealWithDek(dek: Buffer, ref: VaultFieldRef, plaintext: string): string {
+  const iv = randomBytes(IV_BYTES);
+  const cipher = createCipheriv(ALGORITHM, dek, iv, { authTagLength: TAG_BYTES });
+  cipher.setAAD(additionalData(vaultRef(ref), DEK_FORMAT));
+
+  const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  return `${DEK_LABEL}:${b64(iv)}:${b64(cipher.getAuthTag())}:${b64(ciphertext)}`;
+}
+
+export function openWithDek(dek: Buffer, ref: VaultFieldRef, envelope: string): string {
+  const parts = envelope.split(':');
+  if (parts.length !== 4) throw new DecryptionError('malformed envelope');
+
+  const [label, ivPart, tagPart, ctPart] = parts as [string, string, string, string];
+  if (label !== DEK_LABEL) throw new DecryptionError('not a subject-sealed envelope');
+
+  const iv = unb64(ivPart);
+  const tag = unb64(tagPart);
+  if (iv.length !== IV_BYTES) throw new DecryptionError('bad iv length');
+  if (tag.length !== TAG_BYTES) throw new DecryptionError('bad auth tag length');
+
+  const decipher = createDecipheriv(ALGORITHM, dek, iv, { authTagLength: TAG_BYTES });
+  decipher.setAAD(additionalData(vaultRef(ref), DEK_FORMAT));
+  decipher.setAuthTag(tag);
+
+  try {
+    return Buffer.concat([decipher.update(unb64(ctPart)), decipher.final()]).toString('utf8');
+  } catch {
+    throw new DecryptionError('authentication failed');
+  }
+}
+
+/* -------------------------------------------------------------------------
  * Blind indexes
  * ---------------------------------------------------------------------- */
 
@@ -275,8 +452,11 @@ export function blindIndex(
 ): string {
   const key = subkey(ring, ring.indexVersion, `bidx:${spec.table}.${spec.column}.${spec.name}`);
   // A NUL separator cannot be forged from the value itself, because the
-  // transform strips everything outside [A-Z0-9].
-  const input = `${orgId} ${spec.transform(plaintext)}`;
+  // transform strips everything outside [A-Z0-9]. Written as an escape rather
+  // than a literal NUL byte: the two are identical at runtime, and a literal
+  // one does not survive a careless editor round-trip — which would silently
+  // change every index value already stored.
+  const input = `${orgId}\0${spec.transform(plaintext)}`;
 
   return createHmac('sha256', key)
     .update(input, 'utf8')

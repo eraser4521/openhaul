@@ -6,14 +6,23 @@ import {
   CryptoConfigError,
   decryptField,
   DecryptionError,
+  DESTROYED_KEY,
   encryptField,
   envelopeVersion,
+  generateDek,
   generateRootKey,
+  KeyDestroyedError,
+  openWithDek,
   parseKeyring,
+  rewrapDek,
   rotateField,
+  sealWithDek,
   setKeyringForTesting,
+  unwrapDek,
+  wrapDek,
   type FieldRef,
   type Keyring,
+  type SubjectRef,
 } from '@/lib/crypto/field';
 
 const KEY_V1 = Buffer.alloc(32, 1).toString('base64');
@@ -211,6 +220,24 @@ describe('blind index', () => {
   it('does not reveal the plaintext', () => {
     expect(blindIndex(CDL_INDEX, 'org-alpha', 'D1234567', ring)).not.toContain('1234567');
   });
+
+  it('produces the same value it produced yesterday', () => {
+    /*
+     * A change detector, not a correctness check. Every assertion above is
+     * relative, so none of them would notice the input format shifting — and
+     * the separator between the organisation and the licence was a literal NUL
+     * byte in the source until recently, which one careless save would have
+     * dropped. That would not fail anything here, and would silently stop
+     * every already-stored index from ever matching again.
+     *
+     * Verified independently rather than snapshotted from the code it tests:
+     * HMAC-SHA256 over "org-alpha\0D1234567", keyed by
+     * HKDF-SHA256(32 x 0x01, salt "openhaul.hkdf.v1",
+     * info "bidx:pii_vault.cdl_number.exact"), truncated to two bytes, is
+     * 75de. Dropping the separator gives 8aa2.
+     */
+    expect(blindIndex(CDL_INDEX, 'org-alpha', 'D1234567', ring)).toBe('75de');
+  });
 });
 
 describe('generateRootKey', () => {
@@ -222,5 +249,130 @@ describe('generateRootKey', () => {
 
   it('produces a different key each call', () => {
     expect(generateRootKey()).not.toBe(generateRootKey());
+  });
+});
+
+
+/* -------------------------------------------------------------------------
+ * Per-subject keys
+ * ---------------------------------------------------------------------- */
+
+const subject: SubjectRef = { orgId: 'org-alpha', subjectId: 'subject-1' };
+
+describe('wrapping a subject key', () => {
+  it('round-trips the key it was given', () => {
+    const dek = generateDek();
+    const wrapped = wrapDek(subject, dek, ring);
+
+    expect(unwrapDek(subject, wrapped, ring).equals(dek)).toBe(true);
+  });
+
+  it('produces a different envelope every time', () => {
+    const dek = generateDek();
+    expect(wrapDek(subject, dek, ring)).not.toBe(wrapDek(subject, dek, ring));
+  });
+
+  it('refuses to unwrap for a different person', () => {
+    // The whole model rests on this: if one subject's wrapped key opened under
+    // another's id, erasing one person would not be erasing that person.
+    const wrapped = wrapDek(subject, generateDek(), ring);
+
+    expect(() => unwrapDek({ ...subject, subjectId: 'subject-2' }, wrapped, ring)).toThrow(
+      DecryptionError,
+    );
+  });
+
+  it('refuses to unwrap for a different organisation', () => {
+    const wrapped = wrapDek(subject, generateDek(), ring);
+
+    expect(() => unwrapDek({ ...subject, orgId: 'org-beta' }, wrapped, ring)).toThrow(
+      DecryptionError,
+    );
+  });
+
+  it('says a destroyed key is destroyed rather than broken', () => {
+    // Two different answers for the caller: one is a person who was erased,
+    // the other is a bug.
+    expect(() => unwrapDek(subject, DESTROYED_KEY, ring)).toThrow(KeyDestroyedError);
+  });
+
+  it('rejects a key of the wrong length', () => {
+    expect(() => wrapDek(subject, Buffer.alloc(16, 7), ring)).toThrow(CryptoConfigError);
+  });
+});
+
+describe('rotating the root', () => {
+  it('re-wraps the key without touching any field ciphertext', () => {
+    /*
+     * The reason for the indirection. A root rotation rewrites one short
+     * string per person; the sealed fields, of which there may be millions,
+     * are never read or written.
+     */
+    const dek = generateDek();
+    const wrapped = wrapDek(subject, dek, ring);
+    const sealed = sealWithDek(dek, { ...subject, column: 'cdl_number' }, 'D1234567');
+
+    const rewrapped = rewrapDek(subject, wrapped, ringV2);
+
+    expect(rewrapped).not.toBe(wrapped);
+    expect(envelopeVersion(rewrapped)).toBe(2);
+
+    const recovered = unwrapDek(subject, rewrapped, ringV2);
+    expect(openWithDek(recovered, { ...subject, column: 'cdl_number' }, sealed)).toBe('D1234567');
+  });
+});
+
+describe('sealing a field under a subject key', () => {
+  const dek = generateDek();
+  const field = { ...subject, column: 'cdl_number' };
+
+  it('round-trips', () => {
+    expect(openWithDek(dek, field, sealWithDek(dek, field, 'D1234567'))).toBe('D1234567');
+  });
+
+  it('produces different ciphertext for the same value', () => {
+    expect(sealWithDek(dek, field, 'D1234567')).not.toBe(sealWithDek(dek, field, 'D1234567'));
+  });
+
+  it('will not open under another subject key', () => {
+    const sealed = sealWithDek(dek, field, 'D1234567');
+    expect(() => openWithDek(generateDek(), field, sealed)).toThrow(DecryptionError);
+  });
+
+  it('will not open as a different column', () => {
+    // Otherwise a date of birth could be moved into the licence column and
+    // would read out cleanly as a licence number.
+    const sealed = sealWithDek(dek, field, 'D1234567');
+    expect(() => openWithDek(dek, { ...field, column: 'dob' }, sealed)).toThrow(DecryptionError);
+  });
+
+  it('will not open for a different person', () => {
+    const sealed = sealWithDek(dek, field, 'D1234567');
+    expect(() => openWithDek(dek, { ...field, subjectId: 'subject-2' }, sealed)).toThrow(
+      DecryptionError,
+    );
+  });
+
+  it('will not open for a different organisation', () => {
+    const sealed = sealWithDek(dek, field, 'D1234567');
+    expect(() => openWithDek(dek, { ...field, orgId: 'org-beta' }, sealed)).toThrow(
+      DecryptionError,
+    );
+  });
+});
+
+describe('the two encryption schemes cannot be confused', () => {
+  it('will not open a root-sealed field with a data key', () => {
+    const sealed = encryptField(ref, 'D1234567', ring);
+    expect(() => openWithDek(generateDek(), { ...subject, column: 'cdl_number' }, sealed)).toThrow(
+      DecryptionError,
+    );
+  });
+
+  it('will not open a subject-sealed field with the root', () => {
+    // A `k1:` label can never satisfy the `v<N>` parser, so this fails at the
+    // label rather than deep inside a cipher with the wrong key.
+    const sealed = sealWithDek(generateDek(), { ...subject, column: 'cdl_number' }, 'D1234567');
+    expect(() => decryptField(ref, sealed, ring)).toThrow(DecryptionError);
   });
 });

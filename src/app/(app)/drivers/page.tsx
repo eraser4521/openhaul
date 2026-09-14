@@ -7,6 +7,7 @@ import { can } from '@/lib/auth/capabilities';
 import { DriverCard, NewDriver, type DriverRow } from '@/components/app/driver-panel';
 import { isPaymentLate, settlementStatus } from '@/lib/settlements/compute';
 import { driverEscrowBalance } from '@/lib/settlements/lifecycle';
+import { subjectStatus } from '@/lib/pii/vault';
 
 export const metadata = { title: 'Drivers' };
 
@@ -26,11 +27,16 @@ export default async function DriversPage() {
 
   const rows: DriverRow[] = await Promise.all(
     drivers.map(async (driver) => {
-      const [settlements, escrowCents] = await Promise.all([
+      const [settlements, escrowCents, subject] = await Promise.all([
         db.select('settlements', eq(settlementsTable.driverId, driver.id), {
           orderBy: { column: settlementsTable.periodEnd, direction: 'desc' },
         }),
         driverEscrowBalance(db, driver.id),
+        // Tombstone only. Rendering this page must not decrypt anything, or
+        // every visit would write an audit entry for a read nobody made.
+        driver.subjectId
+          ? subjectStatus(db, driver.subjectId)
+          : Promise.resolve({ status: 'missing' as const, erasedAt: null }),
       ]);
 
       return {
@@ -42,6 +48,8 @@ export default async function DriversPage() {
         cdlState: driver.cdlState,
         cdlClass: driver.cdlClass,
         escrowCents,
+        personalData: subject.status === 'missing' ? 'none' : subject.status,
+        personalDataErasedAt: subject.erasedAt?.toISOString() ?? null,
         settlements: settlements.map((settlement) => ({
           id: settlement.id,
           periodStart: settlement.periodStart,
@@ -77,6 +85,8 @@ export default async function DriversPage() {
               key={driver.id}
               driver={driver}
               canWrite={can(session.role, 'settlement.write')}
+              canReadPii={can(session.role, 'pii.read')}
+              canErasePii={can(session.role, 'pii.erase')}
               defaultPeriodStart={period.start}
               defaultPeriodEnd={period.end}
             />

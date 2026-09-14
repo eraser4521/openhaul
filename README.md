@@ -183,17 +183,30 @@ Full detail in [SECURITY.md](SECURITY.md). The parts worth knowing up front:
 3. A test that fails when a new table appears in neither the scoped registry nor a documented
    exemption list — because the real risk is the table somebody adds in six months and forgets.
 
-**Field encryption is AES-256-GCM** with HKDF-derived per-purpose subkeys and additional
-authenticated data bound to `(key version, org, table, column, row)`. That last part matters:
-without it, anyone who can write one column could copy an encrypted licence number from one
-driver's row into another's and it would decrypt cleanly.
+**Field encryption is AES-256-GCM** with additional authenticated data bound to
+`(key version, org, table, column, row)`. That last part matters: without it, anyone who can write
+one column could copy an encrypted licence number from one driver's row into another's and it would
+decrypt cleanly.
 
-> **Not yet wired to personal data.** The only field encrypted today is the MFA secret. The
-> per-subject key model erasure depends on — one data key per person, wrapped by the root and
-> destroyed to make that person's data unreadable everywhere, backups included — exists as
-> `subject_keys` and `pii_vault` in the schema with no code behind it. Until it does, personal
-> data this app collects is stored in the clear, and an erasure request cannot be satisfied by
-> destroying a key. Do not rely on this row of the compliance table yet.
+**Personal data gets a key of its own, per person.** A licence number, date of birth or home
+address is never inlined on the driver row — it lives in a vault sealed under a data key belonging
+to that one individual, and that key is **random and stored only wrapped**, never derived. That
+distinction is the whole feature: a key derived from the root could be re-derived forever, so there
+would be nothing to delete and an erasure request could not be satisfied. A random key that exists
+in exactly one place can be destroyed, and destroying it is what makes that person's data
+unreadable while the bill of lading, its content hash and the audit chain stay exactly as they
+were. Rotating the root re-wraps one short string per person and rewrites no field at all.
+
+Reading personal data is a deliberate act: the screen renders without it, revealing it is a
+separate request, and every decrypt lands on the audit chain with who looked and why — never with
+the values. Erasing takes a reason and the driver's name typed exactly, because there is no undo
+and no copy of the key anywhere in the application.
+
+> **What erasure does not reach.** A backup taken before the erasure still holds the wrapped key
+> and the ciphertext together. Erasure is complete only once those have aged out of your rotation,
+> and the app says so at the point of erasing rather than letting you assume otherwise. The
+> driver's display name also stays in the clear: the app cannot dispatch a load without something
+> to call them, and that name is already printed on documents you are required to keep.
 
 **The audit log is hash-chained.** Every entry commits to the hash of the one before it, with
 append-only triggers on top. Verification is one button in settings and names the exact entry where

@@ -29,6 +29,10 @@ export const CAPABILITIES = {
   'claim.read': ['owner', 'dispatcher', 'accounting'],
   'claim.write': ['owner', 'dispatcher'],
   'pii.read': ['owner'],
+  // Separate from reading because it is irreversible. Same role today; the
+  // point is that a future change to who may read cannot silently hand out
+  // the ability to destroy.
+  'pii.erase': ['owner'],
   'settings.write': ['owner'],
   'audit.read': ['owner'],
   'member.manage': ['owner'],

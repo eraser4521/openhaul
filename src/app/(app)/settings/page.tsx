@@ -236,10 +236,15 @@ export default async function SettingsPage() {
               except the VIN lookups you trigger, which go to NHTSA.
             </p>
             <p className="flex items-start gap-2">
+              <CheckCircle2 className="mt-px size-3.5 shrink-0 text-ok" aria-hidden />
+              A driver&rsquo;s licence number, date of birth and home address are sealed under a key
+              belonging to that person alone, so an erasure request can destroy one key without
+              touching the bills of lading you are required to keep.
+            </p>
+            <p className="flex items-start gap-2">
               <AlertCircle className="mt-px size-3.5 shrink-0 text-warn" aria-hidden />
-              Per-subject encryption is not switched on yet, so personal data this instance holds
-              is stored in the clear and an erasure request cannot be satisfied by destroying one
-              person&rsquo;s key. Plan for that before you put real driver records in.
+              A backup taken before an erasure still holds that key. Erasure is only complete once
+              those backups have aged out of your rotation.
             </p>
             <div className="flex flex-wrap gap-1.5 pt-1">
               <Badge tone="neutral" size="sm">

@@ -10,6 +10,10 @@ import {
   saveDriverAction,
 } from '@/app/(app)/drivers/actions';
 import { Button } from '@/components/ui/button';
+import {
+  DriverPersonalData,
+  type SubjectState,
+} from '@/components/app/driver-personal-data';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +48,13 @@ export interface DriverRow {
   cdlClass: string | null;
   escrowCents: number;
   settlements: DriverSettlement[];
+  /**
+   * Whether anything personal is on file for this driver, and whether it has
+   * been erased. Read from the tombstone, so listing drivers never decrypts
+   * anything and never writes an audit entry.
+   */
+  personalData: SubjectState;
+  personalDataErasedAt: string | null;
 }
 
 const STATUS_TONE: Record<SettlementStatus, 'neutral' | 'info' | 'ok'> = {
@@ -215,11 +226,15 @@ export function NewDriver({ canWrite }: { canWrite: boolean }) {
 export function DriverCard({
   driver,
   canWrite,
+  canReadPii,
+  canErasePii,
   defaultPeriodStart,
   defaultPeriodEnd,
 }: {
   driver: DriverRow;
   canWrite: boolean;
+  canReadPii: boolean;
+  canErasePii: boolean;
   defaultPeriodStart: string;
   defaultPeriodEnd: string;
 }) {
@@ -312,6 +327,19 @@ export function DriverCard({
           <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden />
           {error}
         </p>
+      )}
+
+      {canReadPii && (
+        <div className="border-b border-line px-5 py-4">
+          <DriverPersonalData
+            driverId={driver.id}
+            driverName={driver.displayName}
+            state={driver.personalData}
+            erasedAt={driver.personalDataErasedAt}
+            canRead={canReadPii}
+            canErase={canErasePii}
+          />
+        </div>
       )}
 
       {panel === 'edit' && (
