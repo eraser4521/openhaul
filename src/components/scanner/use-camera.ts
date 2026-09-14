@@ -28,7 +28,6 @@ export interface CameraDevice {
 }
 
 export interface UseCameraResult {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
   active: boolean;
   starting: boolean;
   error: CameraError | null;
@@ -75,8 +74,11 @@ function preferredDevice(devices: CameraDevice[]): CameraDevice | null {
   return plain ?? pool[0] ?? null;
 }
 
-export function useCamera(): UseCameraResult {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+/**
+ * @param videoRef The element the preview renders into. Owned by the caller so
+ *   that this hook's return value contains only state.
+ */
+export function useCamera(videoRef: React.RefObject<HTMLVideoElement | null>): UseCameraResult {
   const streamRef = useRef<MediaStream | null>(null);
   /** Ensures the ultra-wide correction below runs at most once per mount. */
   const lensCorrectedRef = useRef(false);
@@ -95,7 +97,7 @@ export function useCamera(): UseCameraResult {
     if (videoRef.current) videoRef.current.srcObject = null;
     setActive(false);
     setTorchOn(false);
-  }, []);
+  }, [videoRef]);
 
   const startRef = useRef<(deviceId?: string) => Promise<void>>(async () => {});
 
@@ -192,10 +194,15 @@ export function useCamera(): UseCameraResult {
         setStarting(false);
       }
     },
-    [stop],
+    [stop, videoRef],
   );
 
-  startRef.current = start;
+  // Assigned in an effect rather than during render. `start` is only ever
+  // invoked from an event handler, so the ref is populated well before the
+  // lens-correction path can read it.
+  useEffect(() => {
+    startRef.current = start;
+  }, [start]);
 
   const selectDevice = useCallback(
     async (deviceId: string) => {
@@ -236,7 +243,6 @@ export function useCamera(): UseCameraResult {
   useEffect(() => stop, [stop]);
 
   return {
-    videoRef,
     active,
     starting,
     error,

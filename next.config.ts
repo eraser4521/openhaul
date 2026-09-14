@@ -1,7 +1,5 @@
 import type { NextConfig } from 'next';
 
-const isDev = process.env.NODE_ENV === 'development';
-
 const securityHeaders = [
   // Defaults to one year for this host only. A self-hoster running OpenHaul on
   // a subdomain alongside other services must not have includeSubDomains or

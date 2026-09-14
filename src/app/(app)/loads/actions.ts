@@ -2,12 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { db } from '@/lib/db/client';
 import { loads } from '@/lib/db/schema';
 import { appendAudit, AUDIT } from '@/lib/audit/chain';
 import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
+import type { ScopedDb } from '@/lib/db/scope';
 import { classifyVin, isValidVin, normalizeVin } from '@/lib/vin';
 
 export interface LoadActionResult {
@@ -53,13 +52,11 @@ const createLoadSchema = z.object({
 });
 
 /** Next sequential reference, scoped to the organisation. */
-async function nextLoadNumber(orgId: string): Promise<string> {
-  const [latest] = await db
-    .select({ number: loads.number })
-    .from(loads)
-    .where(eq(loads.orgId, orgId))
-    .orderBy(desc(loads.createdAt))
-    .limit(1);
+async function nextLoadNumber(scoped: ScopedDb): Promise<string> {
+  const [latest] = await scoped.select('loads', undefined, {
+    orderBy: { column: loads.createdAt, direction: 'desc' },
+    limit: 1,
+  });
 
   const match = latest?.number ? /(\d+)$/.exec(latest.number) : null;
   const next = match?.[1] ? Number.parseInt(match[1], 10) + 1 : 1001;
@@ -68,8 +65,8 @@ async function nextLoadNumber(orgId: string): Promise<string> {
 
 export async function suggestLoadNumber(): Promise<string> {
   try {
-    const { session } = await requireCapability('load.write');
-    return await nextLoadNumber(session.orgId);
+    const { db: scoped } = await requireCapability('load.write');
+    return await nextLoadNumber(scoped);
   } catch {
     return 'OH-1001';
   }

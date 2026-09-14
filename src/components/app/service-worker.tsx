@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Download, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,20 +14,46 @@ import { Button } from '@/components/ui/button';
  */
 export function ServiceWorkerManager() {
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
-  const [offline, setOffline] = useState(false);
+
+  // Connectivity is an external store, so it is read rather than mirrored into
+  // state. The server snapshot is `false`: rendering "offline" during SSR
+  // would be both wrong and a hydration mismatch.
+  const offline = useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener('online', onChange);
+      window.addEventListener('offline', onChange);
+      return () => {
+        window.removeEventListener('online', onChange);
+        window.removeEventListener('offline', onChange);
+      };
+    },
+    () => !navigator.onLine,
+    () => false,
+  );
 
   useEffect(() => {
-    setOffline(!navigator.onLine);
-    const goOffline = () => setOffline(true);
-    const goOnline = () => setOffline(false);
-    window.addEventListener('offline', goOffline);
-    window.addEventListener('online', goOnline);
+    if (!('serviceWorker' in navigator)) return;
 
-    if (!('serviceWorker' in navigator)) {
-      return () => {
-        window.removeEventListener('offline', goOffline);
-        window.removeEventListener('online', goOnline);
-      };
+    /*
+     * Production only.
+     *
+     * The worker serves /_next/static/ cache-first because production builds
+     * content-hash those URLs, so a given path is immutable. Dev builds reuse
+     * chunk names across rebuilds, so the same policy pins stale JavaScript
+     * and edits appear to do nothing — a genuinely confusing failure, since
+     * the page looks fine and simply runs old code.
+     *
+     * Any worker left over from a previous dev session is unregistered and its
+     * caches dropped, so a developer who hit this once is not stuck with it.
+     */
+    if (process.env.NODE_ENV !== 'production') {
+      void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+        for (const registration of registrations) await registration.unregister();
+        for (const name of await caches.keys()) {
+          if (name.startsWith('openhaul-')) await caches.delete(name);
+        }
+      });
+      return;
     }
 
     let cancelled = false;
@@ -67,8 +93,6 @@ export function ServiceWorkerManager() {
 
     return () => {
       cancelled = true;
-      window.removeEventListener('offline', goOffline);
-      window.removeEventListener('online', goOnline);
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
     };
   }, []);

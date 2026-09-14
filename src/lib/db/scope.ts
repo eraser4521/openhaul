@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, eq, type Column, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, type Column, type SQL } from 'drizzle-orm';
 import { db } from './client';
 import * as schema from './schema';
 import { appendAudit, AUDIT } from '../audit/chain';
@@ -120,10 +120,20 @@ function assertAllInOrg<R extends { orgId?: string }>(rows: R[], orgId: string, 
   return rows;
 }
 
+export interface SelectOptions {
+  /** Column to order by, plus direction. */
+  orderBy?: { column: Column; direction?: 'asc' | 'desc' };
+  limit?: number;
+}
+
 export interface ScopedDb {
   readonly orgId: OrgId;
 
-  select<T extends TenantTableName>(table: T, where?: SQL): Promise<Row<T>[]>;
+  select<T extends TenantTableName>(
+    table: T,
+    where?: SQL,
+    options?: SelectOptions,
+  ): Promise<Row<T>[]>;
   selectOne<T extends TenantTableName>(table: T, where: SQL): Promise<Row<T> | null>;
   insert<T extends TenantTableName>(table: T, values: Omit<Insert<T>, 'orgId'>): Promise<Row<T>[]>;
   insertMany<T extends TenantTableName>(
@@ -162,12 +172,22 @@ export function forOrg(orgId: OrgId): ScopedDb {
   return {
     orgId,
 
-    async select(table, where) {
-      const rows = await db
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async select(table, where, options) {
+      let query = db
         .select()
         .from(TENANT_TABLES[table] as never)
-        .where(merge(table, where));
+        .where(merge(table, where))
+        .$dynamic();
+
+      if (options?.orderBy) {
+        const { column, direction } = options.orderBy;
+        query = query.orderBy(direction === 'asc' ? asc(column) : desc(column));
+      }
+      if (options?.limit !== undefined) {
+        query = query.limit(options.limit);
+      }
+
+      const rows = await query;
       return assertAllInOrg(rows as never[], orgId, table) as never;
     },
 

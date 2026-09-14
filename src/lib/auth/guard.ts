@@ -2,7 +2,6 @@ import 'server-only';
 import { redirect } from 'next/navigation';
 import { appendAudit, AUDIT } from '../audit/chain';
 import { forOrg, type ScopedDb } from '../db/scope';
-import type { OrgRole } from '../db/schema';
 import { getSession, MFA_FRESHNESS_MS, type SessionContext } from './session';
 import { can, type Capability } from './capabilities';
 

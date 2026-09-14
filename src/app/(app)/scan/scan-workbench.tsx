@@ -63,6 +63,10 @@ export function ScanWorkbench() {
   const reset = () => {
     setCaptured(null);
     setResult(null);
+    // Also clear the in-flight flag. Without this, scanning another VIN while
+    // a decode is still running leaves the spinner up permanently, because
+    // nothing else ever sets it back to false.
+    setDecoding(false);
   };
 
   // Decoded entirely on-device, so it renders instantly and still works with
@@ -119,8 +123,14 @@ export function ScanWorkbench() {
       </div>
 
       <div className="space-y-4">
+        {/*
+          mode="wait" expects exactly one child. Two sibling expressions leave
+          `false` in the child array, and the exiting node then never finishes
+          its exit -- the loading panel stays on screen forever. A single
+          ternary keeps it to one keyed child.
+        */}
         <AnimatePresence mode="wait">
-          {decoding && (
+          {decoding ? (
             <motion.div
               key="decoding"
               initial={{ opacity: 0, y: 8 }}
@@ -132,9 +142,7 @@ export function ScanWorkbench() {
                 <p className="text-sm text-ink-secondary">Looking up the vehicle with NHTSA…</p>
               </Card>
             </motion.div>
-          )}
-
-          {!decoding && result && (
+          ) : result ? (
             <motion.div
               key="result"
               initial={{ opacity: 0, y: 8 }}
@@ -201,7 +209,7 @@ export function ScanWorkbench() {
                 )}
               </Card>
             </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
 
         {!captured && (

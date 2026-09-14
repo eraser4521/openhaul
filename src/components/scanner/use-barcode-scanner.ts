@@ -71,7 +71,6 @@ export interface UseBarcodeScannerResult {
   attempts: number;
   /** A payload that decoded but was not a plausible VIN. */
   lastRejected: string | null;
-  ready: boolean;
 }
 
 export function useBarcodeScanner({
@@ -82,11 +81,13 @@ export function useBarcodeScanner({
 }: UseBarcodeScannerOptions): UseBarcodeScannerResult {
   const [attempts, setAttempts] = useState(0);
   const [lastRejected, setLastRejected] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
 
-  // Held in a ref so changing the handler does not restart the loop.
+  // Held in a ref so changing the handler does not restart the decode loop.
+  // Assigned in an effect, because writing a ref during render is not allowed.
   const onHitRef = useRef(onHit);
-  onHitRef.current = onHit;
+  useEffect(() => {
+    onHitRef.current = onHit;
+  }, [onHit]);
 
   useEffect(() => {
     if (!active) return;
@@ -102,8 +103,6 @@ export function useBarcodeScanner({
     const detector = new BarcodeDetector({ formats: [...VEHICLE_FORMATS] });
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d', { willReadFrequently: true });
-
-    setReady(true);
 
     const tick = async (time: number) => {
       if (cancelled) return;
@@ -181,10 +180,9 @@ export function useBarcodeScanner({
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
-      setReady(false);
       setAttempts(0);
     };
   }, [active, videoRef, cropRatio.width, cropRatio.height]);
 
-  return { attempts, lastRejected, ready };
+  return { attempts, lastRejected };
 }

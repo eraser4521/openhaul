@@ -27,9 +27,19 @@ export function proxy(request: NextRequest) {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'${
       isDev ? " 'unsafe-eval'" : ''
     }`,
-    // Tailwind and Next both inject inline <style>; browsers that honour the
-    // nonce use it, and 'unsafe-inline' is the fallback they then ignore.
-    `style-src 'self' 'nonce-${nonce}' 'unsafe-inline'`,
+    /*
+     * Deliberately no nonce on style-src.
+     *
+     * A nonce causes the browser to IGNORE 'unsafe-inline' entirely, and the
+     * animation library sets inline style attributes on elements it animates —
+     * which a nonce cannot cover, because there is no <style> tag to tag.
+     * Including both silently blocks every inline style and breaks the UI.
+     *
+     * The trade is acceptable: inline CSS cannot execute script, so the risk
+     * here is far lower than the equivalent on script-src, which does carry a
+     * nonce and 'strict-dynamic' above.
+     */
+    `style-src 'self' 'unsafe-inline'`,
     // blob: backs captured inspection photos before they are uploaded.
     `img-src 'self' data: blob:`,
     // blob: backs the live camera preview during VIN scanning.

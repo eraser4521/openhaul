@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Camera, Flashlight, Keyboard, RefreshCw, ScanLine, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,15 @@ export interface VinScannerProps {
  * Camera VIN capture, with manual entry always one tap away.
  */
 export function VinScanner({ onCapture, onCancel, className }: VinScannerProps) {
-  const camera = useCamera();
-  const [mode, setMode] = useState<'idle' | 'scanning' | 'manual'>('idle');
+  // The component owns the video element, and hands the ref to both the
+  // camera lifecycle and the decode loop.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const camera = useCamera(videoRef);
+  const [requestedMode, setMode] = useState<'idle' | 'scanning' | 'manual'>('idle');
+  // A camera failure always drops back to idle. Derived during render rather
+  // than synchronised by an effect, which would render one frame in the wrong
+  // state before correcting itself.
+  const mode = requestedMode === 'scanning' && camera.error ? 'idle' : requestedMode;
   const [manualVin, setManualVin] = useState('');
   const [hit, setHit] = useState<ScanHit | null>(null);
 
@@ -36,7 +43,7 @@ export function VinScanner({ onCapture, onCancel, className }: VinScannerProps) 
   );
 
   const scanner = useBarcodeScanner({
-    videoRef: camera.videoRef,
+    videoRef,
     active: mode === 'scanning' && camera.active,
     onHit: handleHit,
   });
@@ -54,10 +61,6 @@ export function VinScanner({ onCapture, onCancel, className }: VinScannerProps) 
     camera.stop();
     setMode('idle');
   };
-
-  useEffect(() => {
-    if (camera.error) setMode('idle');
-  }, [camera.error]);
 
   const accept = (vin: string, source: 'scan' | 'manual', checkDigitValid: boolean) => {
     camera.stop();
@@ -79,7 +82,7 @@ export function VinScanner({ onCapture, onCancel, className }: VinScannerProps) 
           a capture failure and yields a blank stream. Opacity instead.
         */}
         <video
-          ref={camera.videoRef}
+          ref={videoRef}
           playsInline
           muted
           autoPlay

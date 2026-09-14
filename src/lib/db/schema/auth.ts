@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
-import { bool, encrypted, id, json, pk, timestamps, ts } from '../columns';
+import { encrypted, json, pk, timestamps, ts } from '../columns';
 
 /** Roles inside a carrier organisation. */
 export const ORG_ROLES = ['owner', 'dispatcher', 'driver', 'accounting'] as const;
