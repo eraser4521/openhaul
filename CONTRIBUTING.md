@@ -41,11 +41,13 @@ on a patched version itself.
 
 ## Where help is most useful
 
-**Cash coming, not just cash owed.** The money page says what is outstanding and what was promised.
-Neither answers the question a carrier actually loses sleep over: whether there will be enough in
-the account on Friday to make settlements and fuel. That needs what is going *out* — driver pay
-due, expenses awaiting reimbursement, what has been promised to whom — set against what is coming
-in, on a timeline rather than as a total. Easy to build badly as a forecast nobody believes.
+**An opening balance, and the bills that arrive every month.** The cash page now says what moves —
+promised, falling due, going out — and says plainly that it cannot say whether there will be enough,
+because nothing here knows what is in the account or what leaves it on a standing order. Neither gap
+needs a bank connection to close: a balance somebody types in on a Monday, and a short list of
+recurring outgoings with the day of the month each falls on, would turn "what moves" into "what is
+left". The hard part is staying honest once the typed balance goes stale, which it will by
+Wednesday — a figure that quietly ages into fiction is worse than no figure at all.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

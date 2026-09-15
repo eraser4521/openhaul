@@ -115,6 +115,7 @@ template does not reproduce the record that was actually agreed.
 | **Promises** | "The cheque goes out Friday" recorded with a date and an amount, which stops the chasing and resolves itself when the money lands |
 | **A worklist** | Every promise arranged by what to do about it, with each customer's record beside it as counts rather than a score |
 | **The money** | Owed, promised, held and collected on one page, ending in the short list of what needs somebody today |
+| **Cash coming** | Promised, falling due and going out by week, with everything that has no date kept off the timeline and named |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -576,6 +577,34 @@ What needs you is a list of things that are true today rather than a row of coun
 because zeroes teach a reader to stop looking. It leaves out every reason an invoice is *rightly*
 not being chased — disputed, paused, covered by credit — since those are decisions somebody already
 made, and a list that reopens them is a list that gets ignored along with the rows that matter.
+
+What none of that answers is whether Friday works. Outstanding is a total, and a total cannot say
+whether there will be enough in the account when driver settlements and the fuel card fall due. So
+the cash page lays the next four weeks out in rolling seven-day windows: what somebody has promised,
+what falls due under the payment terms, and what goes out against it.
+
+Promised and falling due are separate columns and are never added together. One is a person's word
+and the other is a payment term, and a screen that summed them would be wrong in exactly the
+direction a carrier can least afford. Each week is netted twice for the same reason — if everything
+lands, and on promises alone — because the distance between those two figures is the week's actual
+risk. Where a customer has promised part of an invoice, the promised part comes off the balance and
+only the remainder falls due, so no dollar is ever counted in both columns.
+
+Nothing is estimated. Every dated figure sits on a date already on a record: the day somebody named,
+the invoice's own due date, or the fifteen days 49 CFR 376.12(f) allows from the end of a settlement
+period. Draft settlements count, because that clock runs from the driver's paperwork rather than
+from the day somebody gets round to drawing the statement — leaving them off would let a carrier
+make Friday look survivable by not finalising. Money already late has no future date and so is not
+on the timeline at all. It sits underneath instead, grouped by why it has no date, because "ninety
+days overdue" and "due next Tuesday" are not the same kind of thing and a column that adds them
+produces a number meaning neither.
+
+The last section is what the page cannot see, written down rather than left to be discovered: that
+nothing here is connected to a bank, so this says what moves and not what you have; the driver pay
+already earned on delivered loads nobody has drawn a settlement for, given as a figure rather than
+as a category; and everything that lives nowhere in this application — truck payments, insurance,
+fuel cards, rent, tax. A forecast that does not say what it is missing gets believed about things it
+knows nothing about, which is worse than not having one.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

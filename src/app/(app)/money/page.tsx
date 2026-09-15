@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ArrowRight, Check, PiggyBank } from 'lucide-react';
+import { ArrowRight, CalendarRange, Check, PiggyBank } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { can } from '@/lib/auth/capabilities';
 import { PageBody, PageHeader } from '@/components/app/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils/cn';
 import { money } from '@/lib/utils/format';
 import { AGING_LABEL, ageReceivables, balanceCents } from '@/lib/invoices/compute';
 import {
@@ -166,6 +168,12 @@ export default async function MoneyPage() {
               ? `${money(owed)} outstanding, the oldest of it ${AGING_LABEL[worst.bucket].toLowerCase()} past due`
               : `${money(owed)} outstanding, none of it late`
             : 'Nothing is outstanding.'
+        }
+        actions={
+          <Link href="/money/timeline" className={cn(buttonVariants({ variant: 'secondary' }))}>
+            <CalendarRange aria-hidden />
+            Cash coming
+          </Link>
         }
       />
 
