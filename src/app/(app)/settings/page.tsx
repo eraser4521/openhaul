@@ -28,6 +28,9 @@ import { StatementSchedule } from '@/components/app/statement-schedule';
 import { candidates, itemsFor, recentRuns, scheduleFor } from '@/lib/invoices/statement-run';
 import { nextOccurrenceAfter } from '@/lib/invoices/statement-schedule';
 import { DunningLadder } from '@/components/app/dunning-ladder';
+import { CashAlerts } from '@/components/app/cash-alerts';
+import { alertSettings, recentAlerts, runCashAlerts } from '@/lib/cash/alert-run';
+import { describeWindow } from '@/lib/cash/cashflow';
 import {
   chaseable,
   failedNotices,
@@ -107,6 +110,20 @@ export default async function SettingsPage() {
    * produces.
    */
   const canSettings = can(session.role, 'settings.write');
+  const canCash = can(session.role, 'cash.read');
+
+  /*
+   * What the warning channel would do right now, worked out by the same
+   * function the scheduler calls with nothing sent. A preview computed a
+   * second way is a preview that eventually disagrees with the thing it is
+   * previewing.
+   */
+  const [alertRule, alertPreview, alertHistory] = await Promise.all([
+    canCash ? alertSettings(db) : Promise.resolve(null),
+    canCash ? runCashAlerts(db, { dryRun: true }) : Promise.resolve(null),
+    canCash ? recentAlerts(db) : Promise.resolve([]),
+  ]);
+
   const rule = await scheduleFor(db);
   const [candidateRows, runRows] = await Promise.all([
     canSettings ? candidates(db, rule) : Promise.resolve([]),
@@ -319,6 +336,42 @@ export default async function SettingsPage() {
                 reason: row.decision.chase ? undefined : row.decision.reason,
               }))}
             sweeps={sweepViews}
+          />
+        )}
+
+        {canCash && alertRule && alertPreview && (
+          <CashAlerts
+            enabled={alertRule.enabled}
+            recipients={alertRule.typed}
+            fallbackTo={alertRule.fallback ? (alertRule.recipients[0] ?? null) : null}
+            minimumGapDays={alertRule.minimumGapDays}
+            mailReady={mailConfigured()}
+            triggerReady={Boolean(process.env.CASH_ALERT_TOKEN)}
+            canEdit={can(session.role, 'cash.write')}
+            preview={{
+              send: alertPreview.decision.send,
+              why: alertPreview.decision.send ? null : alertPreview.decision.why,
+              kind: alertPreview.decision.send ? alertPreview.decision.kind : null,
+              reason: alertPreview.decision.send ? alertPreview.decision.reason : null,
+              shortfallCents:
+                alertPreview.decision.send && alertPreview.decision.kind === 'shortfall'
+                  ? alertPreview.decision.shortfall.cents
+                  : null,
+              week:
+                alertPreview.decision.send && alertPreview.decision.kind === 'shortfall'
+                  ? describeWindow(alertPreview.decision.shortfall)
+                  : null,
+            }}
+            history={alertHistory.map((row) => ({
+              id: row.id,
+              kind: row.kind,
+              reason: row.reason,
+              outcome: row.outcome,
+              detail: row.detail,
+              sentAt: row.sentAt.toISOString(),
+              recipients: row.recipients,
+              shortfallCents: row.shortfallCents,
+            }))}
           />
         )}
 

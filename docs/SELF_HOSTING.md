@@ -68,6 +68,7 @@ the encryption worth having.
 | `BOUNCE_CHECK_TOKEN` | for unattended checks | Enables `POST /api/bounces/check`; the endpoint is off without it |
 | `STATEMENT_RUN_TOKEN` | for scheduled statements | Enables `POST /api/statements/run`; the endpoint is off without it |
 | `DUNNING_RUN_TOKEN` | for chasing overdue invoices | Enables `POST /api/dunning/run`; the endpoint is off without it |
+| `CASH_ALERT_TOKEN` | to be warned about your own cash | Enables `POST /api/cash/alerts`; the endpoint is off without it |
 | `FMCSA_WEB_KEY` | for carrier lookups | Free key from mobile.fmcsa.dot.gov; without it the lookup screen says so and stays off |
 | `NEXT_PUBLIC_APP_URL` | yes | Public origin, used in metadata |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | multi-instance only | See below |
@@ -175,6 +176,55 @@ would put words in your mouth about a step you may have no intention of
 taking, and a threat you do not follow through on is ignored the next time.
 Write your own if you want to name a consequence, and mean it. The figures,
 the dates and how to pay are printed by the document; you write the sentence.
+
+---
+
+## Warning you about your own cash
+
+Everything else this application sends goes to somebody else. This is the one
+thing it will send to you, and it is off until you turn it on.
+
+Set a bank balance and your standing costs on the cash screens first — without
+a balance there is nothing to project from and this stays silent, permanently
+and deliberately. Then set `CASH_ALERT_TOKEN` and add a cron line:
+
+```
+0 7 * * * curl -fsS -X POST -H "authorization: Bearer $CASH_ALERT_TOKEN"   https://your-host/api/cash/alerts
+```
+
+Early in the morning, because the point is to reach somebody before they
+commit to a load or a fuel stop rather than to summarise a day already spent.
+
+**One fact is ever sent**: that the account is projected to go under *even if
+every invoice is paid exactly on its terms and every promise is kept*. Going
+under on promises alone is ordinary — few carriers have promises covering a
+month of costs — and a channel that fires on ordinary is a channel filtered
+before it ever fires on the real thing. That reading stays on the page, where
+you chose to look.
+
+**Nothing is sent twice.** After the first warning, another goes only when
+something about it has actually changed: it is now inside the next seven days,
+the week has moved earlier, or it is materially deeper — a quarter worse and
+at least $250, because either test alone fires on noise. A shortfall that
+merely persists, improves without going away, or slips to a later week is not
+news, and the second identical message is what teaches somebody to stop
+opening the first.
+
+**The loop is closed.** When a warning is outstanding and the projection
+recovers, that is said once and then the channel goes quiet again.
+
+**A stale balance changes the wording, not the decision.** Refusing to send on
+an old balance would go silent exactly when nobody has been in the application,
+which is exactly when things tend to be going wrong. So the warning goes with
+the age of the figure stated in it, and when the balance is more than a
+fortnight old the message says plainly that entering a current one is the
+single thing that would make it worth acting on either way.
+
+There is no occurrence to be idempotent about here and none is needed — the
+decision declines to repeat unchanged news — so a cron line firing hourly
+sends no more than one firing daily, and a retry after a timeout costs
+nothing. The Settings screen shows exactly what would be sent if the sweep ran
+now, which most of the time is nothing.
 
 ---
 

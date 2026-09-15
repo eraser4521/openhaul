@@ -106,6 +106,13 @@
       "when": 1789491160987,
       "tag": "0014_tranquil_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1789494226139,
+      "tag": "0015_free_zaladane",
+      "breakpoints": true
     }
   ]
 }

@@ -69,6 +69,8 @@ export const TENANT_TABLES = {
   subjectKeys: schema.subjectKeys,
   cashBalances: schema.cashBalances,
   recurringOutgoings: schema.recurringOutgoings,
+  cashAlertSettings: schema.cashAlertSettings,
+  cashAlerts: schema.cashAlerts,
 } as const;
 
 /**

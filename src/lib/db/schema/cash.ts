@@ -1,5 +1,12 @@
-import { sqliteTable, text, index, uniqueIndex, foreignKey } from 'drizzle-orm/sqlite-core';
-import { currency, money, orgId, pk, timestamps, ts } from '../columns';
+import {
+  sqliteTable,
+  text,
+  integer,
+  index,
+  uniqueIndex,
+  foreignKey,
+} from 'drizzle-orm/sqlite-core';
+import { bool, currency, money, orgId, pk, timestamps, ts } from '../columns';
 import { organizations, users } from './auth';
 
 /**
@@ -153,3 +160,109 @@ export const recurringOutgoings = sqliteTable(
 );
 
 export type RecurringOutgoing = typeof recurringOutgoings.$inferSelect;
+
+/* -------------------------------------------------------------------------
+ * Telling somebody who is not looking
+ * ---------------------------------------------------------------------- */
+
+export const ALERT_KINDS = ['shortfall', 'all_clear'] as const;
+export type AlertKind = (typeof ALERT_KINDS)[number];
+
+/** Why a message was worth sending, recorded so "why did I get this" has an answer. */
+export const ALERT_REASONS = ['first', 'imminent', 'sooner', 'deeper', 'recovered'] as const;
+export type AlertReason = (typeof ALERT_REASONS)[number];
+
+export const cashAlertSettings = sqliteTable(
+  'cash_alert_settings',
+  {
+    id: pk(),
+    orgId: orgId(),
+
+    enabled: bool('enabled').notNull().default(false),
+    /**
+     * Who hears about it. Empty falls back to the organisation's own address.
+     *
+     * A comma-separated list rather than a join table: this is one or two
+     * people at a carrier that has one or two people, and a table would be
+     * three screens of management for a field somebody edits twice.
+     */
+    recipients: text('recipients'),
+    /**
+     * The shortest time between two warnings, whatever changed.
+     *
+     * Short by design — this only fires on news, so the gap is a guard against
+     * a projection flapping either side of the line from one day to the next,
+     * not a rationing of how often bad news may arrive.
+     */
+    minimumGapDays: integer('minimum_gap_days').notNull().default(2),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('cash_alert_settings_org_id_uq').on(t.orgId, t.id),
+    uniqueIndex('cash_alert_settings_org_uq').on(t.orgId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'cash_alert_settings_org_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type CashAlertSettings = typeof cashAlertSettings.$inferSelect;
+
+/**
+ * A warning that went out, and what it was based on.
+ *
+ * Kept for two reasons. The first is that the next decision needs it: whether
+ * a message is worth sending depends entirely on what was last said, and a
+ * channel with no memory repeats itself until it is filtered. The second is
+ * that a warning is a claim about somebody's solvency, and "why did I get this
+ * on the 14th" deserves an answer better than a recomputation from figures
+ * that have since moved.
+ */
+export const cashAlerts = sqliteTable(
+  'cash_alerts',
+  {
+    id: pk(),
+    orgId: orgId(),
+
+    kind: text('kind', { enum: ALERT_KINDS }).notNull(),
+    reason: text('reason', { enum: ALERT_REASONS }).notNull(),
+    outcome: text('outcome', { enum: ['sent', 'failed'] }).notNull(),
+    detail: text('detail'),
+
+    sentAt: ts('sent_at').notNull(),
+    recipients: text('recipients').notNull(),
+
+    /**
+     * The week the account was projected to go under.
+     *
+     * The date, not only the index. Windows roll from whatever day the sweep
+     * runs, so an index means nothing a day later — comparing yesterday's
+     * index with today's is how a channel convinces itself the news has
+     * changed when only the calendar has.
+     */
+    windowFrom: ts('window_from'),
+    windowIndex: integer('window_index'),
+    shortfallCents: money('shortfall_cents'),
+
+    /** The position it was built on, and how old the reading behind it was. */
+    positionCents: money('position_cents'),
+    balanceAsOf: ts('balance_as_of'),
+    balanceDays: integer('balance_days'),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('cash_alerts_org_id_uq').on(t.orgId, t.id),
+    index('cash_alerts_org_sent_idx').on(t.orgId, t.sentAt),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'cash_alerts_org_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type CashAlert = typeof cashAlerts.$inferSelect;

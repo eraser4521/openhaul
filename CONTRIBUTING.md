@@ -41,15 +41,15 @@ on a patched version itself.
 
 ## Where help is most useful
 
-**A warning that reaches somebody who is not looking at the screen.** The cash page can now name the
-week the account goes under, which is worth nothing to a carrier who is driving and will next open
-it on Friday. The machinery to send it already exists — the dunning sweep and the statement runs
-share a cron endpoint and a mail transport — so the work is not plumbing, it is deciding when a
-message is worth somebody's attention. A weekly digest gets filtered within a month. A message that
-arrives only when the projection actually goes under gets read, but is only worth reading if the
-projection is trustworthy, and it is only trustworthy if the balance is fresh — which is the thing
-the message would have to ask for. Getting that loop right, without it becoming a nag about data
-entry, is the whole problem.
+**Warning a driver before the fifteen days run out.** 49 CFR 376.12(f) gives a carrier fifteen days
+from a leased driver's paperwork to pay them, and this application already knows the deadline well
+enough to put unpaid settlements on the cash timeline and to list the breached ones underneath. What
+it does not do is say anything before the line is crossed, which is the only moment the information
+is worth having. The cash warning channel is the obvious place to put it and the wrong one: that
+channel earns its keep by carrying exactly one kind of news, and a second kind would dilute it into
+the weekly digest it was built not to be. So the interesting part is not detecting the breach — that
+is a date subtraction — but deciding whether this belongs in its own channel, on the dashboard, or
+nowhere at all until somebody asks for it.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

@@ -286,6 +286,8 @@ export const AUDIT = {
   insuranceVerified: 'insurance.verified',
 
   cashBalanceRecorded: 'cash.balance.recorded',
+  cashAlertSettingsChanged: 'cash.alert.settings.changed',
+  cashAlertSent: 'cash.alert.sent',
   outgoingSaved: 'cash.outgoing.saved',
   outgoingRemoved: 'cash.outgoing.removed',
 

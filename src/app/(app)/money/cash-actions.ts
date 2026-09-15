@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
 import { parseMoney } from '@/lib/invoices/compute';
 import { recordBalance, removeOutgoing, saveOutgoing } from '@/lib/cash/treasury';
+import { runCashAlerts, saveAlertSettings } from '@/lib/cash/alert-run';
+import { SILENCE_LABEL } from '@/lib/cash/alert';
 import { OUTGOING_CADENCES, OUTGOING_CATEGORIES } from '@/lib/db/schema';
 
 /**
@@ -176,4 +178,80 @@ export async function removeOutgoingAction(id: string): Promise<CashActionResult
   revalidatePath('/money/outgoings');
   revalidatePath('/money/timeline');
   return { ok: true };
+}
+
+/* -------------------------------------------------------------------------
+ * The warning that leaves the building
+ * ---------------------------------------------------------------------- */
+
+const alertSchema = z.object({
+  enabled: z.coerce.boolean(),
+  recipients: z.string().trim().max(500).optional(),
+  minimumGapDays: z.coerce.number().int().min(0).max(30),
+});
+
+export async function saveAlertSettingsAction(formData: FormData): Promise<CashActionResult> {
+  let context;
+  try {
+    context = await requireCapability('cash.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const parsed = alertSchema.safeParse({
+    enabled: formData.get('enabled') === 'on',
+    recipients: formData.get('recipients') ?? undefined,
+    minimumGapDays: formData.get('minimumGapDays') ?? 2,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the details.' };
+  }
+
+  const { session, db } = context;
+  const result = await saveAlertSettings(
+    db,
+    {
+      enabled: parsed.data.enabled,
+      recipients: parsed.data.recipients?.trim() || null,
+      minimumGapDays: parsed.data.minimumGapDays,
+    },
+    session.userId,
+  );
+
+  if (!result.ok) return result;
+
+  revalidatePath('/settings');
+  return { ok: true };
+}
+
+/**
+ * Sends whatever the sweep would send, now.
+ *
+ * The same code path the scheduler takes rather than a special preview, so a
+ * carrier testing the channel is testing the channel. It still declines when
+ * there is nothing worth saying — a "send test" button that always sends
+ * something would prove only that mail works, which is what the mail check is
+ * already for.
+ */
+export async function sweepAlertsAction(): Promise<CashActionResult & { detail?: string }> {
+  let context;
+  try {
+    context = await requireCapability('cash.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const run = await runCashAlerts(context.db);
+  revalidatePath('/settings');
+
+  if (run.sent) return { ok: true, detail: `Sent: ${run.subject}` };
+  if (run.error) return { ok: false, error: run.error };
+
+  return {
+    ok: true,
+    detail: run.decision.send
+      ? 'Nothing was sent.'
+      : SILENCE_LABEL[run.decision.why],
+  };
 }

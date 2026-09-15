@@ -117,6 +117,7 @@ template does not reproduce the record that was actually agreed.
 | **The money** | Owed, promised, held and collected on one page, ending in the short list of what needs somebody today |
 | **Cash coming** | Promised, falling due and going out by week, with everything that has no date kept off the timeline and named |
 | **A running balance** | What the bank said and when, plus what leaves every month, so the weeks answer whether Friday works |
+| **One warning** | An email when the account is projected to go under — never twice for the same news, and retracted when it passes |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -635,6 +636,27 @@ and would be neither. The week the account first goes under is named at the top,
 going under are reported separately: on promises alone is ordinary, since few carriers have promises
 covering a month of costs, while going under with every invoice paid exactly on its terms is the
 week to do something about before it arrives.
+
+Which is worth nothing to somebody who is driving. So that one fact — and only that one — can leave
+the building as an email. Not a weekly summary, which gets filtered inside a month, and not the
+ordinary case where only the promised money falls short. Everything else this application sends goes
+to a customer; this is the single thing it will send to the carrier, and it is off until switched on.
+
+The work in it is knowing when to stay quiet. After the first warning, another goes only when
+something about it has changed: it is now inside the next seven days, the week has moved earlier, or
+it is materially deeper — a quarter worse and at least $250, since either test alone fires on noise.
+A shortfall that merely persists, improves without going away, or slips to a later week is not news,
+and the second identical message is what teaches somebody to stop opening the first. When it
+recovers, that is said once and the channel goes quiet again; without the retraction, whoever fixed
+it is left wondering, and the next warning arrives somewhere already distrusted.
+
+The trap is that a warning is only worth reading if the projection is trustworthy, which it only is
+if the balance is fresh. Refusing to send on a stale one would go silent exactly when nobody has
+been in the application — which is exactly when things tend to be going wrong. So it sends, states
+the age, and when the figure is more than a fortnight old says plainly that entering a current
+balance is the one thing that would make it worth acting on either way. With no balance at all it
+sends nothing, ever: there is nothing to project from, and a message saying so would arrive forever
+and tell nobody anything.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the
