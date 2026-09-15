@@ -166,6 +166,7 @@ the procedure linking the signature to the person; every field here exists to an
 | `dunning_stages` | The rungs of the ladder: when each goes and what it says. The carrier's words; the figures are the document's |
 | `dunning_runs` | One daily sweep. `(org_id, due_on)` is unique, so a sweep happens once however often it is poked |
 | `dunning_notices` | A notice sent, or attempted. The balance and days past due are frozen at the moment it went, because the question afterwards is what the customer was told |
+| `promises_to_pay` | What a customer said they would pay and when. Facts only — whether it was kept is worked out from the payments every time, because a stored state goes stale and a stale one accuses the wrong person |
 | `expenses` | Fuel, tolls, car-pulling, with a receipt photo. `reviewedAt` separates "nobody has decided" from "decided no", which one boolean cannot |
 | `settlements` | Driver pay: revenue minus broker fees, times the pay rate |
 | `accessorial_rates` | The carrier's own named charges, with a rate and the unit it is counted in |

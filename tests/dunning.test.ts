@@ -51,6 +51,7 @@ function context(over: Partial<ChaseContext> = {}): ChaseContext {
     lastPaymentAt: null,
     lastNoticeAt: null,
     lastStageSent: 0,
+    promiseHolds: false,
     ...over,
   };
 }

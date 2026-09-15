@@ -247,6 +247,18 @@ export function DunningLadder({
                 hint="Somebody paying is not somebody to chase."
               />
             </div>
+
+            <div className="sm:col-span-2">
+              <Input
+                name="promiseGraceDays"
+                label="Grace on a promise"
+                type="number"
+                min={0}
+                max={30}
+                defaultValue={rule.promiseGraceDays}
+                hint="A cheque posted on the day takes most of a week."
+              />
+            </div>
           </div>
 
           <div className="mt-5 space-y-4">

@@ -42,6 +42,7 @@ import { checkCreditable, creditsFor } from '@/lib/invoices/credits';
 import { voidBlockedReason } from '@/lib/invoices/lifecycle';
 import { InvoiceDunning } from '@/components/app/invoice-dunning';
 import { chaseable, ladderFor, noticesFor, ruleFor } from '@/lib/invoices/dunning-run';
+import { promisesFor } from '@/lib/invoices/promise-record';
 import { accessorialsFor, listRates } from '@/lib/branding/accessorials';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -123,9 +124,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
    */
   const dunningRule = await ruleFor(db);
   const dunningLadder = await ladderFor(db);
-  const [dunningNotices, chaseRows] = await Promise.all([
+  const [dunningNotices, chaseRows, promiseRows] = await Promise.all([
     noticesFor(db, id),
     chaseable(db, dunningRule, dunningLadder, now),
+    promisesFor(db, id, now),
   ]);
   const chaseRow = chaseRows.find((row) => row.invoice.id === id);
 
@@ -398,7 +400,21 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <InvoiceDunning
           invoiceId={invoice.id}
           enabled={dunningRule.enabled}
+          balanceCents={Math.max(0, balance)}
           canWrite={canPay}
+          promises={promiseRows.map((promise) => ({
+            id: promise.id,
+            amountCents: promise.amountCents,
+            promisedFor: promise.promisedFor.toISOString(),
+            madeAt: promise.madeAt.toISOString(),
+            contactName: promise.contactName,
+            channel: promise.channel,
+            notes: promise.notes,
+            cancelReason: promise.cancelReason,
+            state: promise.outcome.state,
+            receivedCents: promise.outcome.receivedCents,
+            current: promise.current,
+          }))}
           today={now.toISOString().slice(0, 10)}
           daysPastDue={chaseRow?.decision.daysPastDue ?? 0}
           chase={chaseRow?.decision.chase ?? false}

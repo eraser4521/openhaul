@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertCircle, BellOff, FileText, Info, Send } from 'lucide-react';
+import { AlertCircle, BellOff, CalendarCheck, FileText, Info, Send } from 'lucide-react';
 import {
+  cancelPromiseAction,
   pauseDunningAction,
+  recordPromiseAction,
   resumeDunningAction,
   sendNextNoticeAction,
 } from '@/app/(app)/invoices/dunning-actions';
@@ -13,6 +15,13 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { money, relativeTime } from '@/lib/utils/format';
 import { HOLD_LABEL, describeLateness, type HoldReason } from '@/lib/invoices/dunning';
+import {
+  CHANNEL_LABEL,
+  PROMISE_CHANNELS,
+  STATE_LABEL,
+  STATE_TONE,
+  type PromiseState,
+} from '@/lib/invoices/promise';
 
 /**
  * Where this invoice sits on the ladder.
@@ -23,6 +32,20 @@ import { HOLD_LABEL, describeLateness, type HoldReason } from '@/lib/invoices/du
  * it. Without somewhere to put that, the only way to stop a notice going out
  * is to turn chasing off for everybody.
  */
+
+export interface PromiseView {
+  id: string;
+  amountCents: number;
+  promisedFor: string;
+  madeAt: string;
+  contactName: string | null;
+  channel: string;
+  notes: string | null;
+  cancelReason: string | null;
+  state: PromiseState;
+  receivedCents: number;
+  current: boolean;
+}
 
 export interface NoticeView {
   id: string;
@@ -40,6 +63,8 @@ export function InvoiceDunning({
   invoiceId,
   enabled,
   notices,
+  promises,
+  balanceCents,
   daysPastDue,
   chase,
   reason,
@@ -54,6 +79,9 @@ export function InvoiceDunning({
   /** Whether the organisation chases anything at all. */
   enabled: boolean;
   notices: NoticeView[];
+  promises: PromiseView[];
+  /** What the invoice still owes, so a promise cannot exceed it. */
+  balanceCents: number;
   daysPastDue: number;
   /** Whether a notice would go today. */
   chase: boolean;
@@ -66,11 +94,13 @@ export function InvoiceDunning({
   today: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [promising, setPromising] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [problems, setProblems] = useState<string[]>([]);
 
   // Nothing to say about an invoice nobody would ever chase.
-  if (!enabled && notices.length === 0) return null;
+  if (!enabled && notices.length === 0 && promises.length === 0) return null;
 
   const pause = async (formData: FormData) => {
     setBusy(true);
@@ -79,6 +109,36 @@ export function InvoiceDunning({
       const result = await pauseDunningAction(invoiceId, formData);
       if (result.ok) setOpen(false);
       else setError(result.error ?? 'That could not be saved.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const promiseIt = async (formData: FormData) => {
+    setBusy(true);
+    setError(null);
+    setProblems([]);
+    try {
+      const result = await recordPromiseAction(invoiceId, formData);
+      if (result.ok) setPromising(false);
+      else {
+        setError(result.error ?? 'That could not be recorded.');
+        setProblems(result.problems ?? []);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const withdraw = async (promiseId: string) => {
+    const reason = window.prompt('Why is it being withdrawn? It stays on the record.');
+    if (!reason?.trim()) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await cancelPromiseAction(invoiceId, promiseId, reason);
+      if (!result.ok) setError(result.error ?? 'That could not be withdrawn.');
     } finally {
       setBusy(false);
     }
@@ -139,6 +199,18 @@ export function InvoiceDunning({
               )
             )}
 
+            {!promising && balanceCents > 0 && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setPromising(true)}
+              >
+                <CalendarCheck aria-hidden />
+                They promised to pay
+              </Button>
+            )}
+
             {chase && nextStageSequence !== null && !pausedUntil && (
               <Button
                 type="button"
@@ -158,13 +230,144 @@ export function InvoiceDunning({
       </div>
 
       {error && (
-        <p
+        <div
           role="alert"
-          className="flex items-start gap-2 border-b border-line bg-danger-soft px-5 py-3 text-sm text-danger"
+          className="border-b border-line bg-danger-soft px-5 py-3 text-sm text-danger"
         >
-          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
-          {error}
-        </p>
+          <p className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+            {error}
+          </p>
+          {problems.length > 0 && (
+            <ul className="mt-1.5 ml-6 list-disc space-y-0.5 text-xs leading-relaxed">
+              {problems.map((problem) => (
+                <li key={problem}>{problem}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {promising && (
+        <form action={promiseIt} className="border-b border-line bg-surface px-5 py-4">
+          <div className="grid gap-4 sm:grid-cols-6">
+            <div className="sm:col-span-2">
+              <Input
+                name="amount"
+                label="How much"
+                required
+                inputMode="decimal"
+                leading={<span className="text-sm">$</span>}
+                defaultValue={(balanceCents / 100).toFixed(2)}
+                hint={`${money(balanceCents)} is outstanding.`}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <Input
+                name="promisedFor"
+                label="By when"
+                type="date"
+                required
+                defaultValue={today}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor="channel" className="text-sm font-medium text-ink">
+                How they said it
+              </label>
+              <select
+                id="channel"
+                name="channel"
+                defaultValue="phone"
+                className="mt-1.5 h-10 w-full rounded-lg border border-line bg-raised px-2 text-sm text-ink focus:border-brand focus:outline-none"
+              >
+                {PROMISE_CHANNELS.map((channel) => (
+                  <option key={channel} value={channel}>
+                    {CHANNEL_LABEL[channel]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-3">
+              <Input name="contactName" label="Who said it" placeholder="Renata Dowd" />
+            </div>
+
+            <div className="sm:col-span-3">
+              <Input name="notes" label="Note" placeholder="Optional" />
+            </div>
+          </div>
+
+          <p className="mt-3 flex items-start gap-1.5 text-xs leading-relaxed text-ink-muted">
+            <Info className="mt-px size-3.5 shrink-0" aria-hidden />
+            Chasing stops until the day they named, and a few days after it for the post. If the
+            money does not arrive, the next notice says what they told you and when — a fact,
+            not a reproach. If it does, the promise closes itself and nothing more is sent.
+          </p>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setPromising(false)}
+              disabled={busy}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" loading={busy}>
+              Record it
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {promises.length > 0 && (
+        <ul className="divide-y divide-line">
+          {promises.map((promise) => (
+            <li key={promise.id} className="flex flex-wrap items-start gap-3 px-5 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-2 text-sm text-ink">
+                  {money(promise.amountCents)} by{' '}
+                  {new Date(promise.promisedFor).toLocaleDateString('en-US', { timeZone: 'UTC' })}
+                  <Badge tone={STATE_TONE[promise.state]} size="sm">
+                    {STATE_LABEL[promise.state]}
+                  </Badge>
+                </p>
+                <p className="mt-0.5 text-xs text-ink-muted">
+                  {promise.contactName ? `${promise.contactName} · ` : ''}
+                  {CHANNEL_LABEL[promise.channel as keyof typeof CHANNEL_LABEL] ??
+                    promise.channel}{' '}
+                  · said {relativeTime(new Date(promise.madeAt))}
+                  {promise.receivedCents > 0 &&
+                    ` · ${money(promise.receivedCents)} arrived since`}
+                </p>
+                {promise.notes && (
+                  <p className="mt-0.5 text-xs text-ink-secondary">{promise.notes}</p>
+                )}
+                {promise.cancelReason && (
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    Withdrawn: {promise.cancelReason}
+                  </p>
+                )}
+              </div>
+
+              {canWrite && promise.current && promise.state === 'open' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void withdraw(promise.id)}
+                >
+                  Withdraw
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
 
       {open && (

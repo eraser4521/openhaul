@@ -28,6 +28,7 @@ const ruleSchema = z.object({
   enabled: z.coerce.boolean(),
   minimumGapDays: z.coerce.number().int().min(1).max(90),
   pauseAfterPaymentDays: z.coerce.number().int().min(0).max(90),
+  promiseGraceDays: z.coerce.number().int().min(0).max(30),
 });
 
 const stageSchema = z.object({
@@ -78,6 +79,7 @@ export async function saveDunningAction(formData: FormData): Promise<DunningActi
     enabled: formData.get('enabled') === 'on',
     minimumGapDays: formData.get('minimumGapDays') ?? 10,
     pauseAfterPaymentDays: formData.get('pauseAfterPaymentDays') ?? 14,
+    promiseGraceDays: formData.get('promiseGraceDays') ?? 3,
   });
 
   if (!parsed.success) {

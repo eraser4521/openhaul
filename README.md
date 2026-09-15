@@ -112,6 +112,7 @@ template does not reproduce the record that was actually agreed.
 | **Statements** | A customer's account on one page, refused rather than sent if the movements do not add up to the balance |
 | **On a schedule** | Statements posted out monthly or weekly by a cron line, where an occurrence runs once however often it is poked |
 | **Chasing** | An escalating ladder that refuses to chase a disputed invoice, a customer who is paying, or one whose money you are holding |
+| **Promises** | "The cheque goes out Friday" recorded with a date and an amount, which stops the chasing and resolves itself when the money lands |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -520,6 +521,28 @@ their own panel where an edit to the prose cannot break them. The defaults threa
 collections, no lawyers, no credit rating. A default that promised any of those would put words in
 a carrier's mouth about a step they may have no intention of taking, and a threat not followed
 through is ignored the next time.
+
+The commonest reply to a reminder is "the cheque goes out Friday", and that gets recorded as a
+promise with a date and an amount rather than as a note. Chasing stops until the day they named,
+and for a few days after it, because a cheque posted on the day it was promised takes most of a
+week and an ACH raised on a Friday lands on a Tuesday — chasing on the morning after is both petty
+and usually wrong. If the money arrives the promise closes itself and nothing more is sent.
+
+If it does not, the next notice says what they told you and when. That is the point of recording
+it: "on the 3rd you said $1,875 would be paid on the 10th, nothing has arrived since" is a
+materially stronger and more truthful sentence than a second reminder repeating the first. It is
+printed as a fact rather than a reproach, and a carrier who wants to be sharper writes that in
+their own wording.
+
+The risk here runs the other way from the ladder's, so most of the care goes the other way too.
+Telling somebody they broke their word when they did not is worse than any reminder, so only money
+that arrived *after* they said it counts toward the promise; a part payment is its own state rather
+than being rounded down to broken; somebody who rang a second time with a new date has replaced
+what they said rather than broken it; and a promise withdrawn by the customer is recorded as
+withdrawn, which is not the same thing as silence. Nothing about how it turned out is stored — it
+is worked out from the date, the amount and the payments every time, because a stored state goes
+stale the moment a payment is corrected and a stale one is exactly how the wrong accusation gets
+made.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

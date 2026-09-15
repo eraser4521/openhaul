@@ -56,6 +56,14 @@ export interface DunningNoticeInput {
   /** What the carrier is holding for them, when it is not enough to cover it. */
   creditOnAccountCents?: number;
 
+  /** A promise that was not kept, cited as a fact. */
+  promise?: {
+    madeAt: Date;
+    promisedFor: Date;
+    amountCents: number;
+    receivedCents: number;
+  } | null;
+
   brand?: DocumentBrand | null;
 }
 
@@ -175,6 +183,26 @@ export async function renderDunningNotice(input: DunningNoticeInput): Promise<Ui
 
   doc.moveTo(Math.min(leftEnd, doc.y));
   doc.move(14);
+
+  /*
+   * Printed as a fact and nothing more. What was said, when, and what has
+   * arrived since — a carrier who wants to be sharper about it writes that
+   * in their own wording above, where it belongs to them.
+   */
+  if (input.promise) {
+    doc.heading('What you told us');
+
+    doc.text(
+      `On ${dateText(input.promise.madeAt)} you said ${money(input.promise.amountCents)} would ` +
+        `be paid on ${dateText(input.promise.promisedFor)}. ` +
+        (input.promise.receivedCents > 0
+          ? `${money(input.promise.receivedCents)} has arrived since.`
+          : 'Nothing has arrived since.'),
+      { size: 9, lineHeight: 13 },
+    );
+
+    doc.move(12);
+  }
 
   /*
    * Said on the face when it is true. A customer who has money sitting with

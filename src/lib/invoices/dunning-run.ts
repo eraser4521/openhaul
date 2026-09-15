@@ -10,6 +10,7 @@ import {
   invoices as invoicesTable,
   loads as loadsTable,
   payments as paymentsTable,
+  promisesToPay as promisesTable,
   refunds as refundsTable,
   type Customer,
   type Invoice,
@@ -25,6 +26,14 @@ import { renderDunningNotice } from '../documents/dunning-notice';
 import { brandFor } from '../branding/template';
 import { getOrganization } from '../organization/profile';
 import { balanceCents, sumRefunds } from './compute';
+import {
+  citableBreach,
+  currentPromise,
+  holdsChasing,
+  outcomeOf,
+  supersederOf,
+  type PromiseRecord,
+} from './promise';
 import { balancesByCustomer } from './customer-credit';
 import {
   DEFAULT_LADDER,
@@ -88,6 +97,7 @@ export async function ruleFor(scoped: ScopedDb): Promise<DunningRule> {
     minimumBalanceCents: row.minimumBalanceCents,
     minimumGapDays: row.minimumGapDays,
     pauseAfterPaymentDays: row.pauseAfterPaymentDays,
+    promiseGraceDays: row.promiseGraceDays,
   };
 }
 
@@ -169,13 +179,28 @@ export async function chaseable(
 
   const ids = invoices.map((invoice) => invoice.id);
 
-  const [customers, refunds, payments, notices, credit] = await Promise.all([
+  const [customers, refunds, payments, notices, promises, credit] = await Promise.all([
     scoped.select('customers'),
     scoped.select('refunds', inArray(refundsTable.invoiceId, ids)),
     scoped.select('payments', inArray(paymentsTable.invoiceId, ids)),
     scoped.select('dunningNotices', inArray(noticesTable.invoiceId, ids)),
+    scoped.select('promisesToPay', inArray(promisesTable.invoiceId, ids)),
     balancesByCustomer(scoped),
   ]);
+
+  const promisesByInvoice = new Map<string, PromiseRecord[]>();
+  for (const promise of promises) {
+    const list = promisesByInvoice.get(promise.invoiceId) ?? [];
+    list.push(promise);
+    promisesByInvoice.set(promise.invoiceId, list);
+  }
+
+  const paymentsByInvoice = new Map<string, typeof payments>();
+  for (const payment of payments) {
+    const list = paymentsByInvoice.get(payment.invoiceId) ?? [];
+    list.push(payment);
+    paymentsByInvoice.set(payment.invoiceId, list);
+  }
 
   const customerById = new Map(customers.map((customer) => [customer.id, customer]));
 
@@ -252,6 +277,12 @@ export async function chaseable(
           lastPaymentAt: lastPaymentBy.get(invoice.id) ?? null,
           lastNoticeAt: lastNoticeBy.get(invoice.id) ?? null,
           lastStageSent: lastStageBy.get(invoice.id) ?? 0,
+          promiseHolds: promiseHolds(
+            promisesByInvoice.get(invoice.id) ?? [],
+            paymentsByInvoice.get(invoice.id) ?? [],
+            rule.promiseGraceDays,
+            now,
+          ),
         },
         rule,
         ladder,
@@ -261,6 +292,30 @@ export async function chaseable(
       return { invoice, customer, decision };
     })
     .sort((a, b) => b.decision.daysPastDue - a.decision.daysPastDue);
+}
+
+/**
+ * Whether an unresolved promise stands on this invoice.
+ *
+ * Only the most recent one that has not been withdrawn: somebody who rings a
+ * second time with a new date has replaced what they said, not broken it.
+ */
+function promiseHolds(
+  promises: readonly PromiseRecord[],
+  payments: ReadonlyArray<{ amountCents: number; receivedAt: Date }>,
+  graceDays: number,
+  now: Date,
+): boolean {
+  const promise = currentPromise(promises);
+  if (!promise) return false;
+
+  return holdsChasing(
+    outcomeOf(promise, payments, {
+      graceDays,
+      supersededBy: supersederOf(promise, promises),
+      now,
+    }),
+  );
 }
 
 /* -------------------------------------------------------------------------
@@ -306,9 +361,25 @@ export async function sendNotice(
   if (!org) return { ok: false, error: 'The organisation record is missing.' };
   if (!customer?.email) return { ok: false, error: 'No email address on file.' };
 
-  const refunded = sumRefunds(
-    await scoped.select('refunds', eq(refundsTable.invoiceId, invoiceId)),
-  );
+  const [refundRows, paymentRows, promiseRows] = await Promise.all([
+    scoped.select('refunds', eq(refundsTable.invoiceId, invoiceId)),
+    scoped.select('payments', eq(paymentsTable.invoiceId, invoiceId)),
+    scoped.select('promisesToPay', eq(promisesTable.invoiceId, invoiceId)),
+  ]);
+
+  const refunded = sumRefunds(refundRows);
+
+  /*
+   * The whole reason promises are recorded. "You told us on the 3rd that this
+   * would be paid on the 10th" is a stronger and more truthful sentence than
+   * a second reminder repeating the first — and it is a fact rather than a
+   * reproach, which is how the document prints it.
+   */
+  const rule = await ruleFor(scoped);
+  const breach = citableBreach(promiseRows, paymentRows, {
+    graceDays: rule.promiseGraceDays,
+    now,
+  });
   const position = { ...invoice, refundedCents: refunded };
   const balance = balanceCents(position);
   const daysPastDue = invoice.dueAt
@@ -379,6 +450,7 @@ export async function sendNotice(
       balanceCents: balance,
       currency: invoice.currency,
       creditOnAccountCents: credit,
+      promise: breach,
     });
 
     const stored = await storeDocument({
@@ -430,6 +502,7 @@ export async function sendNotice(
         balanceCents: balance,
         daysPastDue,
         documentId: stored.documentId,
+        citedPromise: breach ? breach.promisedFor.toISOString() : null,
       },
     });
 

@@ -28,10 +28,11 @@ npm run build
 
 ## Where help is most useful
 
-**Promises to pay.** When a customer says "the cheque goes out Friday", the only place to put that
-today is a dunning pause with a reason. What it should be is a record with a date and an amount
-that the ladder watches: kept, and the customer is left alone; broken, and chasing resumes knowing
-it was broken. That changes what the next letter can honestly say, which is the point.
+**A promises worklist.** Promises are recorded and watched, but the only place to see one is the
+invoice it belongs to. A bookkeeper wants the other view: what was promised for this week, what
+fell due yesterday and did not arrive, whose word has been good three times running. That is a
+screen rather than a model — the records already exist — but it is the screen that turns a ladder
+into a collections process somebody actually works.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

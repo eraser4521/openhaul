@@ -49,6 +49,7 @@ export const TENANT_TABLES = {
   dunningStages: schema.dunningStages,
   dunningRuns: schema.dunningRuns,
   dunningNotices: schema.dunningNotices,
+  promisesToPay: schema.promisesToPay,
   expenses: schema.expenses,
   settlements: schema.settlements,
   settlementLines: schema.settlementLines,

@@ -163,6 +163,12 @@ be chased. Anything below the minimum balance. Every refusal is named on the
 Settings screen against the invoice it applies to, so "that is ninety days
 late, why has nobody chased it" has an answer.
 
+**A promise stops it.** When a customer says when they will pay, record it on the invoice: chasing
+stops until that day and a few days after it for the post. If the money arrives the promise closes
+itself; if it does not, the next notice states what they told you and when. Only money that arrived
+after they said it counts toward it, and a second conversation replaces the first rather than
+breaking it — telling somebody they broke their word when they did not is worse than any reminder.
+
 **The wording is yours.** The default rungs threaten nothing — no collections,
 no lawyers, no credit rating — because a default that promised any of those
 would put words in your mouth about a step you may have no intention of

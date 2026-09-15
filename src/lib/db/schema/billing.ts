@@ -612,6 +612,14 @@ export const dunningSettings = sqliteTable(
      * next, but not until they have had this long.
      */
     pauseAfterPaymentDays: integer('pause_after_payment_days').notNull().default(14),
+    /**
+     * How long after a promised date to wait before calling it broken.
+     *
+     * Arithmetic rather than generosity: a cheque posted on the day it was
+     * promised takes most of a week, and an ACH raised on a Friday lands on a
+     * Tuesday. Chasing on the morning after is both petty and usually wrong.
+     */
+    promiseGraceDays: integer('promise_grace_days').notNull().default(3),
 
     ...timestamps,
   },
@@ -765,6 +773,63 @@ export const dunningNotices = sqliteTable(
 );
 
 export type DunningNotice = typeof dunningNotices.$inferSelect;
+
+export const PROMISE_CHANNELS = ['phone', 'email', 'portal', 'in_person', 'other'] as const;
+export type PromiseChannel = (typeof PROMISE_CHANNELS)[number];
+
+/**
+ * What a customer said they would do about an invoice.
+ *
+ * Facts only. Whether it was kept is worked out from the date, the amount and
+ * the payments that arrived afterwards — never stored — because a stored
+ * state goes stale the moment a payment is corrected, and a stale one has the
+ * carrier telling somebody they broke their word when they did not.
+ *
+ * Withdrawing is the exception: a promise taken back is a decision somebody
+ * made, so it is recorded rather than derived. Being replaced by a later
+ * promise is derived, because it always follows from the dates.
+ */
+export const promisesToPay = sqliteTable(
+  'promises_to_pay',
+  {
+    id: pk(),
+    orgId: orgId(),
+    invoiceId: text('invoice_id').notNull(),
+
+    amountCents: money('amount_cents').notNull(),
+    currency: currency(),
+    /** The day they said the money would be there. */
+    promisedFor: ts('promised_for').notNull(),
+    /** When they said it. Money that arrived before cannot count toward it. */
+    madeAt: ts('made_at').notNull(),
+
+    /** Who said it, so the next call can start with the right person. */
+    contactName: text('contact_name'),
+    channel: text('channel', { enum: PROMISE_CHANNELS }).notNull().default('phone'),
+    notes: text('notes'),
+
+    cancelledAt: ts('cancelled_at'),
+    cancelReason: text('cancel_reason'),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('promises_to_pay_org_id_uq').on(t.orgId, t.id),
+    index('promises_to_pay_invoice_idx').on(t.orgId, t.invoiceId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'promises_to_pay_org_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.invoiceId],
+      foreignColumns: [invoices.orgId, invoices.id],
+      name: 'promises_to_pay_invoice_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type PromiseToPay = typeof promisesToPay.$inferSelect;
 
 /** Driver-incurred costs against a load, with a receipt photo. */
 export const expenses = sqliteTable(

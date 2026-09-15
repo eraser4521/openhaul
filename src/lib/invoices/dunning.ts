@@ -29,6 +29,8 @@ export interface DunningRule {
   minimumBalanceCents: number;
   minimumGapDays: number;
   pauseAfterPaymentDays: number;
+  /** Days after a promised date before it counts as not kept. */
+  promiseGraceDays: number;
 }
 
 export const DEFAULT_RULE: DunningRule = {
@@ -36,6 +38,7 @@ export const DEFAULT_RULE: DunningRule = {
   minimumBalanceCents: 0,
   minimumGapDays: 10,
   pauseAfterPaymentDays: 14,
+  promiseGraceDays: 3,
 };
 
 /**
@@ -89,6 +92,7 @@ export const HOLD_REASONS = [
   'under_minimum',
   'covered_by_credit',
   'customer_opted_out',
+  'promised',
   'paused',
   'disputed',
   'legal_hold',
@@ -105,6 +109,7 @@ export const HOLD_LABEL: Record<HoldReason, string> = {
   under_minimum: 'Below the minimum balance',
   covered_by_credit: 'Covered by credit the customer holds with you',
   customer_opted_out: 'Chasing turned off for this customer',
+  promised: 'They have promised to pay',
   paused: 'Paused by hand',
   disputed: 'A claim is open on this load',
   legal_hold: 'The load is under legal hold',
@@ -137,6 +142,14 @@ export interface ChaseContext {
   /** The highest rung already sent, and when. */
   lastNoticeAt: Date | null;
   lastStageSent: number;
+  /**
+   * Whether an unresolved promise is standing on this invoice.
+   *
+   * Worked out by `promise.ts` from what was said and what arrived, and
+   * passed in rather than recomputed here so the screen and the sweep cannot
+   * reach different answers about the same conversation.
+   */
+  promiseHolds: boolean;
 }
 
 export type ChaseDecision =
@@ -174,6 +187,13 @@ export function decideChase(
   if (context.customerCreditCents >= balance) return held('covered_by_credit');
 
   if (!context.customerDunningEnabled) return held('customer_opted_out');
+
+  /*
+   * Somebody who has said when they will pay has earned the wait. Chasing
+   * through a promise that has not fallen due yet is the fastest way to teach
+   * a customer that telling you anything is pointless.
+   */
+  if (context.promiseHolds) return held('promised');
 
   if (invoice.dunningPausedUntil && invoice.dunningPausedUntil.getTime() > now.getTime()) {
     return held('paused');

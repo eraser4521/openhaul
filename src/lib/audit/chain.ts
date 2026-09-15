@@ -269,6 +269,8 @@ export const AUDIT = {
   dunningNoticeSent: 'dunning.notice.sent',
   dunningPaused: 'dunning.paused',
   dunningRunFinished: 'dunning.run.finished',
+  promiseRecorded: 'promise.recorded',
+  promiseCancelled: 'promise.cancelled',
 
   driverCreated: 'driver.created',
   expenseRecorded: 'expense.recorded',

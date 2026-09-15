@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
 import { ladderFor, pauseDunning, sendNotice } from '@/lib/invoices/dunning-run';
+import { cancelPromise, recordPromise } from '@/lib/invoices/promise-record';
+import { PROMISE_CHANNELS } from '@/lib/db/schema';
+import { parseMoney } from '@/lib/invoices/compute';
 
 /**
  * Stopping or nudging the ladder on one invoice.
@@ -104,5 +107,87 @@ export async function sendNextNoticeAction(
 
   revalidatePath(`/invoices/${invoiceId}`);
   revalidatePath('/documents');
+  return { ok: true };
+}
+
+/* -------------------------------------------------------------------------
+ * Promises to pay
+ * ---------------------------------------------------------------------- */
+
+export interface PromiseActionResult {
+  ok: boolean;
+  error?: string;
+  problems?: string[];
+}
+
+const promiseSchema = z.object({
+  promisedFor: z.string().trim().min(1, 'Say when they said it would be paid.'),
+  contactName: z.string().trim().max(120).optional(),
+  channel: z.enum(PROMISE_CHANNELS),
+  notes: z.string().trim().max(400).optional(),
+});
+
+export async function recordPromiseAction(
+  invoiceId: string,
+  formData: FormData,
+): Promise<PromiseActionResult> {
+  let context;
+  try {
+    context = await requireCapability('payment.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const parsed = promiseSchema.safeParse({
+    promisedFor: formData.get('promisedFor') ?? '',
+    contactName: formData.get('contactName') ?? undefined,
+    channel: formData.get('channel') ?? 'phone',
+    notes: formData.get('notes') ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Check the details.' };
+  }
+
+  const amountCents = parseMoney(String(formData.get('amount') ?? ''));
+  if (amountCents === null) {
+    return { ok: false, error: 'Enter what they said they would pay, like 1875.00.' };
+  }
+
+  const promisedFor = atNoon(parsed.data.promisedFor);
+  if (!promisedFor) return { ok: false, error: 'That is not a date.' };
+
+  const result = await recordPromise(context.db, invoiceId, {
+    amountCents,
+    promisedFor,
+    contactName: parsed.data.contactName || null,
+    channel: parsed.data.channel,
+    notes: parsed.data.notes || null,
+  });
+
+  if (!result.ok) return { ok: false, error: result.error, problems: result.problems };
+
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath('/settings');
+  return { ok: true };
+}
+
+export async function cancelPromiseAction(
+  invoiceId: string,
+  promiseId: string,
+  reason: string,
+): Promise<PromiseActionResult> {
+  let context;
+  try {
+    context = await requireCapability('payment.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const result = await cancelPromise(context.db, promiseId, reason);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/invoices/${invoiceId}`);
+  revalidatePath('/settings');
   return { ok: true };
 }
