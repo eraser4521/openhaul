@@ -21,6 +21,8 @@
     "db:seed": "node --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
     "db:studio": "drizzle-kit studio",
     "keys:generate": "node scripts/generate-secrets.mjs",
+    "mail:sink": "node scripts/mail-sink.mjs",
+    "sweep": "node scripts/sweep.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "postinstall": "node scripts/copy-wasm.mjs",
     "publish": "node scripts/publish-to-github.mjs"

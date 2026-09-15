@@ -275,6 +275,88 @@ now, which most of the time is nothing.
 
 ---
 
+## Trying the scheduled jobs before you trust them
+
+Four jobs run on a timer, each behind its own token and each off until that
+token is set. Together they are the part of this application most likely to be
+misconfigured and least likely to tell you, because the failure mode is
+silence.
+
+### Fire them by hand
+
+```bash
+npm run sweep              # everything that is switched on
+npm run sweep -- dunning   # just one: bounces, statements, dunning, cash
+```
+
+It reads the same `.env.local` the application does and prints why each job did
+nothing, which is usually the answer you want:
+
+```
+  bounces     off — IMAP_HOST is not set
+  statements  ok  200  sent=0  — Statements are not sent on a schedule.
+  dunning     ok  200  sent=2 failed=0 held=0
+  cash        ok  200  sent=0  — disabled
+```
+
+A job saying `sent=0` is almost never broken. It has already run today, or
+nothing is due, or the feature is switched off in Settings — and each route
+says which. Point it at another instance with `SWEEP_URL=https://host`.
+
+### Send mail nowhere
+
+```bash
+npm run mail:sink
+```
+
+A loopback SMTP server that accepts everything, delivers nothing, prints each
+message and writes it to `data/mail/`. Point `SMTP_HOST="127.0.0.1"` and
+`SMTP_PORT="2525"` at it and every sending path in the application runs end to
+end — including the PDF generation and the attachment — without an account
+anywhere and without the risk that your first test emails a real customer.
+
+Switch to a real provider by replacing the host and port and adding
+`SMTP_USER` and `SMTP_PASSWORD`; most want port 587. Never run the sink on a
+host where anything but loopback can reach it.
+
+### All four cron lines
+
+```cron
+# OpenHaul. Each line is independent: delete the ones you do not want.
+BOUNCE_CHECK_TOKEN=...
+STATEMENT_RUN_TOKEN=...
+DUNNING_RUN_TOKEN=...
+CASH_ALERT_TOKEN=...
+
+*/15 * * * *  curl -fsS -X POST -H "authorization: Bearer $BOUNCE_CHECK_TOKEN"   https://your-host/api/bounces/check
+0 6    * * *  curl -fsS -X POST -H "authorization: Bearer $STATEMENT_RUN_TOKEN"  https://your-host/api/statements/run
+0 7    * * *  curl -fsS -X POST -H "authorization: Bearer $CASH_ALERT_TOKEN"     https://your-host/api/cash/alerts
+0 9    * * *  curl -fsS -X POST -H "authorization: Bearer $DUNNING_RUN_TOKEN"    https://your-host/api/dunning/run
+```
+
+Cash before dunning, deliberately: the warning about your own position should
+reach you before the day's chasing goes out in your name.
+
+Calling any of them more often than scheduled is safe. Statements and dunning
+are keyed to the day and decline a second run; the cash warning declines to
+repeat news that has not changed.
+
+### On Windows, which has no cron
+
+`npm run sweep` is the whole job, so the scheduled task is one line:
+
+```powershell
+$dir = "C:\path	o\openhaul"
+schtasks /create /tn "OpenHaul sweep" /sc daily /st 07:00 /tr `
+  "cmd /c cd /d $dir && npm run sweep >> data\sweep.log 2>&1"
+```
+
+Per-job timing needs one task each with `-- dunning` and friends. A single
+daily sweep is enough for everything except bounce checking, which wants to be
+frequent.
+
+---
+
 ## Behind a reverse proxy
 
 **This is the step that produces the most confusing failure.** Next.js validates that a Server
