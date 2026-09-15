@@ -12,7 +12,7 @@ so does an old laptop in the office.
 - Disk for the database (small) and inspection photos (not small — budget roughly 14 MB per
   inspection at 12 photos).
 
-No database server. No Docker, unless you want it.
+No database server. No Docker, unless you want it — there is a compose file below if you do.
 
 > **Alpine note.** `@node-rs/argon2` is a native module. Prebuilt binaries cover
 > `linux-x64-musl`, but a Debian-slim base is the better-tested path.
@@ -33,6 +33,52 @@ npm start
 
 `keys:generate` writes `.env.local` with fresh secrets and `chmod 600`. It refuses to overwrite an
 existing file unless you pass `--force`, which would make all existing data unreadable.
+---
+
+## With Docker, if you prefer
+
+The bare-Node path above is the one this project is built and tested against.
+A `Dockerfile` and `docker-compose.yml` are here because hosting is easier
+with them, not because anything needs them.
+
+**Generate the keys first.** This matters more than it looks:
+
+```bash
+npm ci
+npm run keys:generate
+docker compose up -d --build
+```
+
+The compose file mounts `.env.local` into the container rather than copying it
+into an image or handing it to Compose's `env_file:` parser — the keys stay out
+of every image layer and out of `docker history`, and the file is read by the
+same loader that reads it outside Docker. The catch is that Docker creates a
+*directory* where a bind mount's source is missing, so running `up` before
+`keys:generate` gets you a container that cannot read its own configuration and
+an `.env.local/` folder to delete before you try again.
+
+**One volume holds everything that matters.** The database, the generated PDFs
+and the inspection photographs all live under `/app/data`, because the blob
+store defaults to `data/uploads`. Back it up with the `VACUUM INTO` script
+below rather than by copying the volume.
+
+**Migrations run at start.** The container runs `db:migrate` before `next
+start`, which takes its own backup first and stops the container rather than
+serving against a half-applied schema. That assumes one instance — several
+replicas against one SQLite file is not a supported deployment, and a
+concurrent migration would be the least of it.
+
+**The image keeps its dev dependencies.** `npm prune --omit=dev` is the usual
+last step and it has already broken this project once: npm dropped
+`@emnapi/core` and `@emnapi/runtime` on Linux and CI failed until they were
+pinned into `dependencies`. On a tree with native and wasm packages the pruning
+is not worth a few hundred megabytes.
+
+**You still need a reverse proxy.** The compose file binds to `127.0.0.1` on
+purpose. Browsers will not start a camera outside a secure context, so an
+instance reachable over plain http is an instance where VIN scanning is dead.
+See *Behind a reverse proxy* below.
+
 
 ### Back up the keys first
 
@@ -70,7 +116,8 @@ the encryption worth having.
 | `DUNNING_RUN_TOKEN` | for chasing overdue invoices | Enables `POST /api/dunning/run`; the endpoint is off without it |
 | `CASH_ALERT_TOKEN` | to be warned about your own cash | Enables `POST /api/cash/alerts`; the endpoint is off without it |
 | `FMCSA_WEB_KEY` | for carrier lookups | Free key from mobile.fmcsa.dot.gov; without it the lookup screen says so and stays off |
-| `NEXT_PUBLIC_APP_URL` | yes | Public origin, used in metadata |
+| `NEXT_PUBLIC_APP_URL` | yes | Public origin, used in metadata and in cash warning emails |
+| `BLOB_STORAGE_PATH` | no | Defaults to `data/uploads`; photos and generated PDFs |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | multi-instance only | See below |
 | `ALLOWED_ORIGINS` | behind a proxy | See below |
 | `HSTS_HEADER` | no | Defaults to `max-age=31536000` |
@@ -398,8 +445,30 @@ where you can reach it.
 
 ## Health checks
 
+Two endpoints, answering different questions. Point your monitoring at the second one.
+
 ```bash
-curl -f https://openhaul.example.com/ || systemctl restart openhaul
+# Is the process up and serving?
+curl -fsS https://openhaul.example.com/api/health      # 204, no body
+
+# Can it actually read its database?
+curl -fsS https://openhaul.example.com/api/ready       # 200 {"ok":true}, or 503
+```
+
+`/api/health` is deliberately cheap and touches nothing. It exists for the offline outbox, which
+calls it to tell a real instance apart from a truck stop's captive portal cheerfully returning 200
+to everything — so it answers from memory and carries an `x-openhaul: ok` header. **It will answer
+perfectly while the database is missing, unreadable, or never migrated.** Restarting on that signal
+restarts a healthy process.
+
+`/api/ready` reads. It fails when the database file is absent, when `DATABASE_ENCRYPTION_KEY` does
+not match the one it was written with, and when nobody has run `db:migrate` — which is every way a
+fresh deployment goes wrong. An empty instance nobody has registered on is ready, because it is.
+The body says only `database` on failure: it is unauthenticated, and the detail belongs in the
+server log rather than in a stranger's hands.
+
+```bash
+curl -fsS https://openhaul.example.com/api/ready || systemctl restart openhaul
 ```
 
 Verify the audit chain on a schedule and export the head hash somewhere the server operator does

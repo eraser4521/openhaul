@@ -1,0 +1,48 @@
+# Build context hygiene. Anything here is either rebuilt inside the image,
+# specific to a developer's machine, or must never be baked into a layer.
+
+# ---- rebuilt inside the image ----
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+
+# ---- runtime data: belongs in a volume, never in a layer ----
+# Baking these in would ship one carrier's database and photographs to
+# whoever pulls the image.
+data/
+
+# ---- secrets ----
+# Mounted at run time instead, so the keys are never in an image layer and
+# never in its history. See docker-compose.yml.
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+!public/**/*.key
+
+# ---- not needed to build or run ----
+.git/
+.github/
+.claude/
+tests/
+docs/
+*.md
+!README.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ---- legacy Flutter scaffold, kept locally and not published ----
+# Large, unrelated, and would otherwise be uploaded as build context on
+# every single build.
+autoloadmanagment_app/
+
+# ---- editor and OS ----
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,40 @@
+# One service, one volume. That is the whole deployment.
+#
+# OpenHaul is a Node process and a SQLite file, so there is no database
+# container here and there is not meant to be. If you find yourself adding
+# one, read docs/SELF_HOSTING.md first — the file is encrypted at rest with a
+# key this compose file deliberately never copies into an image.
+
+services:
+  openhaul:
+    build: .
+    image: openhaul:local
+    restart: unless-stopped
+
+    # Bound to localhost. Put a reverse proxy in front for TLS — the browser
+    # will not start a camera for VIN scanning outside a secure context, so
+    # plain http on a LAN address gets you a working app with a dead scanner.
+    # docs/SELF_HOSTING.md has a Caddy config that also sets the forwarded
+    # headers sign-in needs.
+    ports:
+      - '127.0.0.1:3000:3000'
+
+    # The secrets file is mounted, not baked in and not passed through
+    # Compose's env parser.
+    #
+    # Two reasons. It keeps OPENHAUL_KEYS and DATABASE_ENCRYPTION_KEY out of
+    # every image layer and out of `docker history`. And `npm run keys:generate`
+    # writes quoted values, which Next's own loader and `node --env-file` both
+    # handle — where an `env_file:` entry hands the same file to a different
+    # parser that has not always agreed about quotes. Mounting it means one
+    # file read by the code that already reads it.
+    volumes:
+      - ./.env.local:/app/.env.local:ro
+      - openhaul-data:/app/data
+
+    # Everything that has to survive a redeploy lives under /app/data: the
+    # database, the generated PDFs, and the inspection photographs. Back it up
+    # with the VACUUM INTO script in docs/SELF_HOSTING.md rather than by
+    # copying the file — a plain copy can catch a torn write-ahead log.
+volumes:
+  openhaul-data:
