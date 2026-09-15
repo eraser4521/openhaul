@@ -1,4 +1,6 @@
 import 'server-only';
+import { mkdirSync } from 'node:fs';
+import path from 'node:path';
 import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import * as schema from './schema';
@@ -20,8 +22,35 @@ function connectionUrl(): string {
   return 'file:./data/openhaul.db';
 }
 
+/**
+ * Makes sure the folder a local database file lives in exists.
+ *
+ * SQLite will create the file but not the directory, so a fresh clone throws
+ * `SQLITE_CANTOPEN` the first time anything imports this — before migrations
+ * have ever run, which is exactly when `data/` does not exist yet. The
+ * migrate script already does this for itself; doing it here covers every
+ * other way in, including a test run on a clean checkout.
+ */
+function ensureDirectory(url: string): void {
+  if (!url.startsWith('file:')) return;
+
+  const filePath = url.slice('file:'.length);
+  // `:memory:` and shared-cache URIs have no directory to make.
+  if (!filePath || filePath.startsWith(':')) return;
+
+  try {
+    mkdirSync(path.dirname(path.resolve(filePath)), { recursive: true });
+  } catch {
+    // Read-only filesystem, or a path the process cannot create. Let the
+    // connection itself produce the error, which says more than this could.
+  }
+}
+
+const url = connectionUrl();
+ensureDirectory(url);
+
 const client = createClient({
-  url: connectionUrl(),
+  url,
   authToken: process.env.DATABASE_AUTH_TOKEN,
   // Whole-database encryption at rest. Protects a stolen disk or a copied
   // backup file; field-level encryption additionally protects against an
