@@ -31,6 +31,12 @@ which then makes `npm ci` fail on Linux with "Missing: @emnapi/runtime from lock
 them at the root keeps them in the tree whatever platform `npm install` runs on. Removing them as
 unused breaks CI, not the app.
 
+**`browserslist` is pinned through `overrides`.** `@serwist/next` still depends on a version with
+two high-severity advisories against it, and npm's own suggested fix is to downgrade `@serwist/next`
+to a release two minors back. The override takes the patched `browserslist` instead, which is a
+patch bump within the same minor. It can go as soon as `@serwist/next` ships a release that depends
+on a patched version itself.
+
 ---
 
 ## Where help is most useful

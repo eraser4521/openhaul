@@ -25,6 +25,9 @@
     "postinstall": "node scripts/copy-wasm.mjs",
     "publish": "node scripts/publish-to-github.mjs"
   },
+  "overrides": {
+    "browserslist": "^4.28.7"
+  },
   "dependencies": {
     "@emnapi/core": "^1.11.3",
     "@emnapi/runtime": "^1.11.3",
