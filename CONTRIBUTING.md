@@ -41,16 +41,17 @@ on a patched version itself.
 
 ## Where help is most useful
 
-**A promise to drivers that nothing checks.** Every settlement statement handed to a leased
-owner-operator prints a sentence saying their escrow will be returned within forty-five days of the
-lease ending, because 49 CFR 376.12(h) requires it. The application computes the balance, prints the
-promise, and then has no idea whether it was kept: nothing anchors the forty-five days. The pieces
-are nearly there — `drivers.deactivatedAt` is the closest thing to a lease ending, and
-`driverEscrowBalance` already knows what is held — but wiring them together is the easy half. The
-hard half is that this deadline concerns money belonging to somebody who has already left, and the
-person who would act on the warning is the one who benefits from forgetting it. Whether a departed
-driver should be able to see their own escrow standing, rather than relying on the carrier being
-reminded, is the question worth answering before any of it gets built.
+**Escrow interest, which nothing computes.** 49 CFR 376.12(h)(5) requires a carrier holding escrow
+to pay the owner-operator interest on it, at least annually, at a rate the lease specifies and no
+less than the average yield on ninety-one-day Treasury bills. The application now tracks the balance
+and warns when the fund is held past the forty-five days, and pays no interest on it at any point in
+between. That is a debt quietly accruing against every leased driver with a fund open, and unlike
+the return deadline it cannot be derived from what is already stored: the rate lives in the lease,
+which this application has never modelled, and the balance moves between settlements so the interest
+is on a changing principal rather than a figure. Whether to hold the lease terms at all — or only
+the escrow rate, which is the one term with arithmetic attached — is the decision to make before
+writing any of it, because a half-modelled lease invites every other clause in Part 376 to be
+half-modelled next to it.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

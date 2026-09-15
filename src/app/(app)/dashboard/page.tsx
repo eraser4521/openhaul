@@ -7,6 +7,7 @@ import {
   Gauge,
   ScanLine,
   Truck,
+  PiggyBank,
   TriangleAlert,
   Wallet,
 } from 'lucide-react';
@@ -16,6 +17,8 @@ import { PageBody, PageHeader } from '@/components/app/page-header';
 import { expiringCertificates } from '@/lib/insurance/certificates';
 import { settlementsDue } from '@/lib/settlements/deadline-report';
 import { CITATION, describeAction, describeDeadline, lateCount } from '@/lib/settlements/deadline';
+import { escrowReturnsDue } from '@/lib/settlements/escrow-report';
+import { ESCROW_CITATION, lateCount as escrowLateCount } from '@/lib/settlements/escrow';
 import { can } from '@/lib/auth/capabilities';
 import { KIND_LABEL } from '@/lib/insurance/status';
 import { ShieldAlert } from 'lucide-react';
@@ -92,10 +95,19 @@ export default async function DashboardPage() {
    * fortnight of runway rather than an afternoon. It belongs where somebody
    * already looks before starting work.
    */
-  const dueSettlements = can(session.role, 'settlement.read')
-    ? await settlementsDue(db)
-    : [];
+  const maySeeSettlements = can(session.role, 'settlement.read');
+  const dueSettlements = maySeeSettlements ? await settlementsDue(db) : [];
   const overdueSettlements = lateCount(dueSettlements);
+
+  /*
+   * Escrow is the one deadline here where the carrier's interest runs the
+   * other way: it is somebody else's money and that somebody has already left.
+   * Its own card rather than folded in with the settlements, because it will
+   * almost never appear — a driver leaves a few times a year — and when it
+   * does it is a different act by a different date.
+   */
+  const dueEscrow = maySeeSettlements ? await escrowReturnsDue(db) : [];
+  const overdueEscrow = escrowLateCount(dueEscrow);
 
   const delivered = allLoads.filter((l) => l.deliveredAt !== null);
   const revenueCents = delivered.reduce((sum, l) => sum + (l.rateCents ?? 0), 0);
@@ -184,7 +196,7 @@ export default async function DashboardPage() {
                   >
                     {row.driverName} — {money(row.netPayCents)},{' '}
                     <span className={row.state === 'late' ? 'text-danger' : 'text-warn'}>
-                      {describeDeadline(row)}
+                      {describeDeadline(row.daysLeft)}
                     </span>{' '}
                     · {describeAction(row)}
                   </Link>
@@ -199,6 +211,45 @@ export default async function DashboardPage() {
             )}
 
             <p className="mt-2 pl-6 text-xs leading-relaxed text-ink-muted">{CITATION}</p>
+          </Card>
+        )}
+
+        {dueEscrow.length > 0 && (
+          <Card className={cn('p-5', overdueEscrow > 0 ? 'border-danger/40' : 'border-warn/40')}>
+            <p
+              className={cn(
+                'flex items-start gap-2 text-sm font-medium',
+                overdueEscrow > 0 ? 'text-danger' : 'text-warn',
+              )}
+            >
+              <PiggyBank className="mt-0.5 size-4 shrink-0" aria-hidden />
+              {overdueEscrow > 0
+                ? 'Escrow is being held past the forty-five days'
+                : dueEscrow.length === 1
+                  ? 'Escrow is coming up on its forty-five days'
+                  : 'Escrow is coming up on its forty-five days for several drivers'}
+            </p>
+
+            <ul className="mt-2 space-y-1 pl-6 text-xs leading-relaxed text-ink-secondary">
+              {dueEscrow.slice(0, 4).map((row) => (
+                <li key={row.driverId}>
+                  <Link href="/drivers" className="hover:text-ink hover:underline">
+                    {row.driverName} — {money(row.balanceCents)} of theirs,{' '}
+                    <span className={row.state === 'late' ? 'text-danger' : 'text-warn'}>
+                      {describeDeadline(row.daysLeft)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            {dueEscrow.length > 4 && (
+              <p className="mt-1 pl-6 text-xs text-ink-muted">
+                and {dueEscrow.length - 4} more.
+              </p>
+            )}
+
+            <p className="mt-2 pl-6 text-xs leading-relaxed text-ink-muted">{ESCROW_CITATION}</p>
           </Card>
         )}
 

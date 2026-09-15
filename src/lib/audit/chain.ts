@@ -273,6 +273,8 @@ export const AUDIT = {
   promiseCancelled: 'promise.cancelled',
 
   driverCreated: 'driver.created',
+  driverLeft: 'driver.left',
+  driverReinstated: 'driver.reinstated',
   expenseRecorded: 'expense.recorded',
   expenseReviewed: 'expense.reviewed',
   settlementFinalized: 'settlement.finalized',

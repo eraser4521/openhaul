@@ -204,7 +204,7 @@ describe('how it reads', () => {
       NOW,
     );
 
-    const said = new Map(rows.map((row) => [row.settlementId, describeDeadline(row)]));
+    const said = new Map(rows.map((row) => [row.settlementId, describeDeadline(row.daysLeft)]));
 
     expect(said.get('a')).toBe('3 days left');
     expect(said.get('b')).toBe('1 day left');

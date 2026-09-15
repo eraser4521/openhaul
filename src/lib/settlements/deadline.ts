@@ -168,15 +168,22 @@ export function lateCount(rows: readonly Deadline[]): number {
   return rows.filter((row) => row.state === 'late').length;
 }
 
-/** "3 days left", "due today", "8 days over" — the clock in plain words. */
-export function describeDeadline(row: Deadline): string {
-  if (row.daysLeft < 0) {
-    const over = Math.abs(row.daysLeft);
+/**
+ * "3 days left", "due today", "8 days over" — the clock in plain words.
+ *
+ * Takes the number rather than the row, because the escrow return in
+ * `escrow.ts` is a different obligation counted the same way, and two
+ * implementations of this would drift into saying "1 days over" in one place
+ * and not the other.
+ */
+export function describeDeadline(daysLeft: number): string {
+  if (daysLeft < 0) {
+    const over = Math.abs(daysLeft);
     return over === 1 ? '1 day over' : `${over} days over`;
   }
 
-  if (row.daysLeft === 0) return 'due today';
-  return row.daysLeft === 1 ? '1 day left' : `${row.daysLeft} days left`;
+  if (daysLeft === 0) return 'due today';
+  return daysLeft === 1 ? '1 day left' : `${daysLeft} days left`;
 }
 
 /**

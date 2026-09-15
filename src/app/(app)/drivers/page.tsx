@@ -6,6 +6,8 @@ import { EmptyState, PageBody, PageHeader } from '@/components/app/page-header';
 import { can } from '@/lib/auth/capabilities';
 import { DriverCard, NewDriver, type DriverRow } from '@/components/app/driver-panel';
 import { isPaymentLate, settlementStatus } from '@/lib/settlements/compute';
+import { escrowHoldings } from '@/lib/settlements/escrow-report';
+import { escrowState, returnDueBy } from '@/lib/settlements/escrow';
 import { driverEscrowBalance } from '@/lib/settlements/lifecycle';
 import { subjectStatus } from '@/lib/pii/vault';
 
@@ -22,6 +24,7 @@ export default async function DriversPage() {
   const { session, db } = await requireSessionOrRedirect();
 
   const drivers = await db.select('drivers');
+  const holdings = await escrowHoldings(db);
   const now = new Date();
   const period = defaultPeriod(now);
 
@@ -39,10 +42,32 @@ export default async function DriversPage() {
           : Promise.resolve({ status: 'missing' as const, erasedAt: null }),
       ]);
 
+      /*
+       * The escrow deadline is worked out from the same holdings the dashboard
+       * reads, so the two screens cannot disagree about whose money is still
+       * held or for how much longer.
+       */
+      const holding = holdings.find((row) => row.driverId === driver.id);
+      const state = holding ? escrowState(holding, now) : 'nothing_held';
+      const dueBy = holding ? returnDueBy(holding) : null;
+
       return {
         id: driver.id,
         displayName: driver.displayName,
         employmentType: driver.employmentType,
+        leftOn: driver.deactivatedAt?.toISOString() ?? null,
+        escrowDue:
+          dueBy && (state === 'due_soon' || state === 'late')
+            ? {
+                dueBy: dueBy.toISOString(),
+                daysLeft: Math.round(
+                  (Date.UTC(dueBy.getUTCFullYear(), dueBy.getUTCMonth(), dueBy.getUTCDate()) -
+                    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) /
+                    86_400_000,
+                ),
+                state,
+              }
+            : null,
         payRateBps: driver.payRateBps,
         payPerMileCents: driver.payPerMileCents,
         cdlState: driver.cdlState,

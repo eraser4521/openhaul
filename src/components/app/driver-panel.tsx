@@ -4,9 +4,20 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
-import { AlertCircle, CalendarRange, IdCard, Pencil, Plus, Wallet } from 'lucide-react';
+import {
+  AlertCircle,
+  CalendarRange,
+  IdCard,
+  LogOut,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Wallet,
+} from 'lucide-react';
 import {
   buildSettlementAction,
+  endLeaseAction,
+  reinstateDriverAction,
   saveDriverAction,
 } from '@/app/(app)/drivers/actions';
 import { Button } from '@/components/ui/button';
@@ -18,6 +29,8 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { money, relativeTime } from '@/lib/utils/format';
+import { cn } from '@/lib/utils/cn';
+import { describeDeadline } from '@/lib/settlements/deadline';
 import { STATUS_LABEL, type SettlementStatus } from '@/lib/settlements/compute';
 
 /**
@@ -47,6 +60,10 @@ export interface DriverRow {
   cdlState: string | null;
   cdlClass: string | null;
   escrowCents: number;
+  /** The carrier's own record that this driver has gone. ISO, or null. */
+  leftOn: string | null;
+  /** Null unless escrow is still held past the forty-five days, or close to it. */
+  escrowDue: { dueBy: string; daysLeft: number; state: 'due_soon' | 'late' } | null;
   settlements: DriverSettlement[];
   /**
    * Whether anything personal is on file for this driver, and whether it has
@@ -223,6 +240,16 @@ export function NewDriver({ canWrite }: { canWrite: boolean }) {
   );
 }
 
+/** A day, in the UTC calendar the rest of the application counts in. */
+function dayText(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
 export function DriverCard({
   driver,
   canWrite,
@@ -240,8 +267,37 @@ export function DriverCard({
 }) {
   const router = useRouter();
   const [panel, setPanel] = useState<'edit' | 'settle' | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const endLease = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await endLeaseAction(driver.id);
+      if (result.ok) {
+        setLeaving(false);
+        router.refresh();
+      } else {
+        setError(result.error ?? 'That could not be recorded.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const reinstate = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await reinstateDriverAction(driver.id);
+      if (result.ok) router.refresh();
+      else setError(result.error ?? 'That could not be undone.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const leased = driver.employmentType === 'owner_operator';
 
@@ -282,15 +338,30 @@ export function DriverCard({
             <Badge tone={leased ? 'info' : 'neutral'} size="sm">
               {leased ? 'Owner-operator' : 'Company'}
             </Badge>
+            {driver.leftOn && (
+              <Badge tone="neutral" size="sm">
+                Left {dayText(driver.leftOn)}
+              </Badge>
+            )}
           </h3>
           <p className="mt-1 text-xs text-ink-secondary">
             {payDescription(driver)}
             {driver.cdlClass ? ` · CDL ${driver.cdlClass}${driver.cdlState ? ` (${driver.cdlState})` : ''}` : ''}
           </p>
           {leased && (
-            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-muted">
+            <p
+              className={cn(
+                'mt-0.5 flex items-center gap-1.5 text-xs',
+                driver.escrowDue
+                  ? driver.escrowDue.state === 'late'
+                    ? 'text-danger'
+                    : 'text-warn'
+                  : 'text-ink-muted',
+              )}
+            >
               <Wallet className="size-3.5" aria-hidden />
               {money(driver.escrowCents)} held in escrow
+              {driver.escrowDue && ` · to return, ${describeDeadline(driver.escrowDue.daysLeft)}`}
             </p>
           )}
         </div>
@@ -315,9 +386,51 @@ export function DriverCard({
               <CalendarRange aria-hidden />
               Run a settlement
             </Button>
+            {/*
+              * Two clocks start from this: the forty-five days 376.12(h)
+              * allows for returning escrow, and the retention period after
+              * which the record becomes purgeable. So it is its own act with
+              * its own confirmation rather than a field in the edit form,
+              * where it would be changed by accident and noticed by nobody.
+              */}
+            {driver.leftOn ? (
+              <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void reinstate()}>
+                <RotateCcw aria-hidden />
+                Still here
+              </Button>
+            ) : leaving ? (
+              <>
+                <Button type="button" variant="danger" size="sm" disabled={busy} onClick={() => void endLease()}>
+                  They have left
+                </Button>
+                <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setLeaving(false)}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setLeaving(true)}>
+                <LogOut aria-hidden />
+                Mark as left
+              </Button>
+            )}
           </div>
         )}
       </div>
+
+      {driver.escrowDue && (
+        <p
+          className={cn(
+            'flex items-start gap-2 border-b border-line px-5 py-3 text-xs leading-relaxed',
+            driver.escrowDue.state === 'late' ? 'bg-danger-soft text-danger' : 'bg-warn-soft text-warn',
+          )}
+        >
+          <Wallet className="mt-px size-3.5 shrink-0" aria-hidden />
+          {money(driver.escrowCents)} of this driver&rsquo;s money is still held. Under 49 CFR
+          376.12(h) it goes back within forty-five days of the lease ending, which was{' '}
+          {dayText(driver.leftOn!)} — {describeDeadline(driver.escrowDue.daysLeft)}. Returning it on
+          a final settlement clears the balance and puts it on a statement they receive.
+        </p>
+      )}
 
       {error && (
         <p

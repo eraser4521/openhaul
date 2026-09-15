@@ -119,6 +119,7 @@ template does not reproduce the record that was actually agreed.
 | **A running balance** | What the bank said and when, plus what leaves every month, so the weeks answer whether Friday works |
 | **One warning** | An email when the account is projected to go under — never twice for the same news, and retracted when it passes |
 | **Before the fifteen days** | Every leased settlement running out of time, on the dashboard, while there is still time to do something |
+| **Escrow that is not yours** | Money held for a driver who has left, counted against the forty-five days, cleared only by returning it |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -682,6 +683,28 @@ model. Nothing warns about a company driver, the note under the list says so rat
 carrier to assume there was nothing to know, and the cash timeline no longer dates their settlement
 by a rule that does not bind them — it goes to the undated pile with the reason, like an invoice
 with no payment terms.
+
+The last deadline is the one a carrier has no reason to want. Escrow held back from a leased
+owner-operator has to be returned within forty-five days of the lease ending under 376.12(h), and
+every settlement statement already printed that promise to the driver. Nothing checked it. A late
+invoice costs a carrier money and a late settlement embarrasses them with somebody they still need;
+escrow that quietly stays put costs nothing, and the person it belongs to has already gone. That is
+exactly why it is worth a reminder — one is only load-bearing where nobody has an incentive to go
+looking.
+
+It is discharged when the balance reaches zero, not by a checkbox. Escrow moves through settlement
+lines, so returning it means writing a line that lands on a statement the driver receives, and a
+deduction the lease permits lands the same way — both routes reach the same arithmetic and neither
+has to be trusted on its own. Marking the fund returned without anything moving is not available,
+which is the point.
+
+The clock needed an anchor that did not exist. Nothing in the data said a lease had ended: the
+column was there and nothing ever wrote to it. Marking a driver as having left is now a deliberate
+act with its own confirmation and its own audit entry, and it is reversible, because a misclick
+would otherwise start a statutory clock against somebody who never left. It also unblocks the
+retention policy for driver records, which was already waiting on the same date. A carrier who never
+marks anybody as having left still sees nothing — the warning rests on an act of record-keeping, and
+the screen says what it counts from rather than pretending otherwise.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

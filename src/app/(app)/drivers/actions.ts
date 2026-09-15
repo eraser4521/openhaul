@@ -344,3 +344,92 @@ export async function escrowFor(driverId: string): Promise<number> {
     return 0;
   }
 }
+
+/* -------------------------------------------------------------------------
+ * Leaving
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Records that a driver has gone.
+ *
+ * Nothing else in the data says a lease ended, and two clocks start from this
+ * date: the forty-five days 49 CFR 376.12(h) allows for returning escrow, and
+ * the retention period after which the driver record itself becomes
+ * purgeable. So it is a deliberate act with its own audit entry rather than a
+ * field buried in the edit form, where it would be changed by accident and
+ * noticed by nobody.
+ *
+ * `driver.write`, which is owner-only. Starting a legal clock and making a
+ * personnel record destroyable is not a dispatch decision.
+ */
+export async function endLeaseAction(driverId: string): Promise<DriverActionResult> {
+  let context;
+  try {
+    context = await requireCapability('driver.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const { session, db } = context;
+
+  const driver = await db.selectOne('drivers', eq(driversTable.id, driverId));
+  if (!driver) return { ok: false, error: 'No such driver.' };
+  if (driver.deactivatedAt) return { ok: false, error: 'That driver has already left.' };
+
+  const left = new Date();
+  await db.update('drivers', eq(driversTable.id, driverId), { deactivatedAt: left });
+
+  await appendAudit({
+    orgId: session.orgId,
+    actorId: session.userId,
+    actorRole: session.role,
+    action: AUDIT.driverLeft,
+    subject: `driver:${driverId}`,
+    detail: { employmentType: driver.employmentType, leftOn: left.toISOString() },
+  });
+
+  revalidatePath('/drivers');
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
+
+/**
+ * Undoes it.
+ *
+ * A misclick here would otherwise start a statutory clock against a driver who
+ * never left and, forty-five days later, put a warning on the dashboard about
+ * money nobody owes back yet. Both the act and its reversal are audited, so
+ * the record shows a date that moved rather than a date that was always wrong.
+ */
+export async function reinstateDriverAction(driverId: string): Promise<DriverActionResult> {
+  let context;
+  try {
+    context = await requireCapability('driver.write');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  const { session, db } = context;
+
+  const driver = await db.selectOne('drivers', eq(driversTable.id, driverId));
+  if (!driver) return { ok: false, error: 'No such driver.' };
+  if (!driver.deactivatedAt) return { ok: false, error: 'That driver has not left.' };
+
+  await db.update('drivers', eq(driversTable.id, driverId), {
+    deactivatedAt: null,
+    activeAt: driver.activeAt ?? new Date(),
+  });
+
+  await appendAudit({
+    orgId: session.orgId,
+    actorId: session.userId,
+    actorRole: session.role,
+    action: AUDIT.driverReinstated,
+    subject: `driver:${driverId}`,
+    detail: { hadLeftOn: driver.deactivatedAt.toISOString() },
+  });
+
+  revalidatePath('/drivers');
+  revalidatePath('/dashboard');
+  return { ok: true };
+}
