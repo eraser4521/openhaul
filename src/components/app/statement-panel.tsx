@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { AlertCircle, Check, FileText, Receipt } from 'lucide-react';
-import { buildStatementAction } from '@/app/(app)/customers/statement-actions';
+import {
+  buildStatementAction,
+  setStatementsEnabledAction,
+} from '@/app/(app)/customers/statement-actions';
 import { Button } from '@/components/ui/button';
 import { money, relativeTime } from '@/lib/utils/format';
 import { STATEMENT_WINDOWS, describeWindow } from '@/lib/invoices/statement';
@@ -36,6 +39,8 @@ export function StatementPanel({
   heldCents,
   openItemCount,
   statements,
+  scheduled,
+  scheduleOn,
   canBuild,
 }: {
   customerId: string;
@@ -44,11 +49,26 @@ export function StatementPanel({
   heldCents: number;
   openItemCount: number;
   statements: StatementView[];
+  /** Whether the organisation's schedule reaches this customer. */
+  scheduled: boolean;
+  /** False when the organisation sends none at all, so the toggle explains itself. */
+  scheduleOn: boolean;
   canBuild: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<string | null>(null);
+
+  const setScheduled = async (enabled: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await setStatementsEnabledAction(customerId, enabled);
+      if (!result.ok) setError(result.error ?? 'That could not be changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const build = async (formData: FormData) => {
     setBusy(true);
@@ -117,6 +137,22 @@ export function StatementPanel({
             Produce
           </Button>
         </form>
+      )}
+
+      {canBuild && (
+        <label className="mt-2 flex items-start gap-2 text-xs leading-relaxed text-ink-secondary">
+          <input
+            type="checkbox"
+            checked={scheduled}
+            disabled={busy}
+            onChange={(event) => void setScheduled(event.target.checked)}
+            className="mt-0.5 size-3.5 rounded border-line accent-[var(--brand)]"
+          />
+          <span>
+            Include in scheduled statements.
+            {!scheduleOn && ' Nothing is sent on a schedule yet — set one in Settings.'}
+          </span>
+        </label>
       )}
 
       {statements.length > 0 && (

@@ -13,6 +13,7 @@ import { balancesByCustomer, movementsFor } from '@/lib/invoices/customer-credit
 import { CreditLedger } from '@/components/app/credit-ledger';
 import { StatementPanel } from '@/components/app/statement-panel';
 import { statementsFor, statementView } from '@/lib/invoices/statement-document';
+import { scheduleFor } from '@/lib/invoices/statement-run';
 import { can } from '@/lib/auth/capabilities';
 
 export const metadata = { title: 'Customers' };
@@ -43,6 +44,7 @@ export default async function CustomersPage() {
   );
 
   const canStatement = can(session.role, 'invoice.read');
+  const schedule = await scheduleFor(db);
 
   /*
    * The account position is worked out per customer rather than once, because
@@ -162,6 +164,8 @@ export default async function CustomersPage() {
                             heldCents={accounts.get(customer.id)!.view.totals.closingHeldCents}
                             openItemCount={accounts.get(customer.id)!.view.items.length}
                             canBuild={canStatement}
+                            scheduled={customer.statementsEnabled}
+                            scheduleOn={schedule.cadence !== 'off'}
                             statements={accounts.get(customer.id)!.history.map((row) => ({
                               id: row.id,
                               issuedAt: row.issuedAt.toISOString(),

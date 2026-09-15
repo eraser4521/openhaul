@@ -66,6 +66,7 @@ the encryption worth having.
 | `IMAP_USER`, `IMAP_PASSWORD` | no | Fall back to the SMTP credentials |
 | `SMTP_BOUNCE_ADDRESS` | recommended | A plus-addressable mailbox, so bounces can be traced to a send |
 | `BOUNCE_CHECK_TOKEN` | for unattended checks | Enables `POST /api/bounces/check`; the endpoint is off without it |
+| `STATEMENT_RUN_TOKEN` | for scheduled statements | Enables `POST /api/statements/run`; the endpoint is off without it |
 | `FMCSA_WEB_KEY` | for carrier lookups | Free key from mobile.fmcsa.dot.gov; without it the lookup screen says so and stays off |
 | `NEXT_PUBLIC_APP_URL` | yes | Public origin, used in metadata |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | multi-instance only | See below |
@@ -93,6 +94,40 @@ only signal a plain SMTP setup produces, so this finds the failures that come
 back as one. A message quietly dropped, greylisted into oblivion, or filed as
 spam produces nothing to find. A send with no bounce against it is not proof
 anybody read it.
+
+---
+
+## Sending statements on a schedule
+
+Same shape, same reason. The cadence — monthly on a day you choose, or weekly
+— is set on the Settings screen; what is missing is something to tell the app
+what day it is. Set `STATEMENT_RUN_TOKEN` and add a cron line:
+
+```
+0 6 * * * curl -fsS -X POST -H "authorization: Bearer $STATEMENT_RUN_TOKEN"   https://your-host/api/statements/run
+```
+
+One line covers any cadence. The app works out which scheduled occurrence
+today belongs to, and an occurrence runs at most once — so calling it hourly
+sends nothing extra, and a retry after a timeout finds the run already
+claimed rather than sending everything twice.
+
+**A missed run is not made up.** If the machine was off for a fortnight, one
+statement goes out when it comes back rather than a fortnight of them. Every
+balance on a statement is as at the moment it was produced, so an occurrence
+that was missed has nothing left to say that the current one does not.
+
+**Failures do not stop the sweep.** Each customer is produced and sent on its
+own, and whatever went wrong is recorded against that customer: no address on
+file, a statement that would not reconcile, a refused recipient. Settings
+lists them after every run. Nothing is retried inside a run — an SMTP outage
+during a fifty-customer sweep would otherwise become several hundred attempts
+against a server already refusing — so a failure waits for a person or for
+the next occurrence.
+
+The endpoint returns 200 even when individual sends failed, because the
+request was handled and a retry would only find the occurrence taken. Watch
+the run summary in Settings, not the HTTP status.
 
 ---
 

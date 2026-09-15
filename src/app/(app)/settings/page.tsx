@@ -24,6 +24,9 @@ import { activeHolds } from '@/lib/retention/holds';
 import { ANCHOR_LABEL } from '@/lib/retention/policy';
 import type { TemplateScope } from '@/lib/db/schema';
 import { VerifyChainButton } from './verify-chain';
+import { StatementSchedule } from '@/components/app/statement-schedule';
+import { candidates, itemsFor, recentRuns, scheduleFor } from '@/lib/invoices/statement-run';
+import { nextOccurrenceAfter } from '@/lib/invoices/statement-schedule';
 
 /** The editable half of a stored template row. */
 function templateValues(row: {
@@ -88,6 +91,46 @@ export default async function SettingsPage() {
   for (const row of templates) {
     if (row.scope !== 'all') overrides[row.scope] = templateValues(row);
   }
+
+  /*
+   * The schedule, who it would reach and what the last few runs did. The
+   * candidate list comes from the same function the run itself uses, so the
+   * preview cannot promise a different set of recipients than the sweep
+   * produces.
+   */
+  const canSettings = can(session.role, 'settings.write');
+  const rule = await scheduleFor(db);
+  const [candidateRows, runRows] = await Promise.all([
+    canSettings ? candidates(db, rule) : Promise.resolve([]),
+    canSettings ? recentRuns(db) : Promise.resolve([]),
+  ]);
+
+  const runViews = await Promise.all(
+    runRows.map(async (run) => {
+      const items = await itemsFor(db, run.id);
+      return {
+        id: run.id,
+        dueOn: run.dueOn.toISOString().slice(0, 10),
+        trigger: run.trigger,
+        startedAt: run.startedAt.toISOString(),
+        finishedAt: run.finishedAt?.toISOString() ?? null,
+        considered: run.consideredCount,
+        sent: run.sentCount,
+        failed: run.failedCount,
+        skipped: run.skippedCount,
+        problems: items
+          .filter((item) => item.outcome !== 'sent')
+          .map((item) => ({
+            id: item.id,
+            customerName: item.customerName,
+            outcome: item.outcome,
+            detail: item.detail,
+          })),
+      };
+    }),
+  );
+
+  const nextOn = nextOccurrenceAfter(rule, new Date());
 
   return (
     <>
@@ -205,6 +248,24 @@ export default async function SettingsPage() {
             placedAt: hold.placedAt.toISOString(),
           }))}
         />
+
+        {canSettings && (
+          <StatementSchedule
+            rule={rule}
+            nextOn={nextOn ? nextOn.toISOString().slice(0, 10) : null}
+            mailReady={mailConfigured()}
+            triggerReady={Boolean(process.env.STATEMENT_RUN_TOKEN)}
+            canEdit={canSettings}
+            candidates={candidateRows.map((row) => ({
+              customerId: row.customer.id,
+              name: row.customer.name,
+              balanceCents: row.balanceCents,
+              heldCents: row.heldCents,
+              decision: row.decision,
+            }))}
+            runs={runViews}
+          />
+        )}
 
         <MailCheck configured={mailConfigured()} />
 

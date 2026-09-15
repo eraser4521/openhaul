@@ -1,8 +1,8 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { asOrgId, forOrg } from '@/lib/db/scope';
 import { checkBounces } from '@/lib/documents/bounces';
 import { allOrganizations } from '@/lib/organization/profile';
+import { checkSchedulerToken } from '@/lib/auth/shared-token';
 
 /**
  * Checking the bounce mailbox from a scheduler.
@@ -24,35 +24,12 @@ import { allOrganizations } from '@/lib/organization/profile';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-/** Constant-time comparison that does not leak the token's length. */
-function tokenMatches(supplied: string, expected: string): boolean {
-  const a = Buffer.from(supplied);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) {
-    // Still compare something, so a wrong length costs the same as a wrong byte.
-    timingSafeEqual(a, a);
-    return false;
-  }
-  return timingSafeEqual(a, b);
-}
-
 export async function POST(request: Request) {
-  const expected = process.env.BOUNCE_CHECK_TOKEN;
-  if (!expected) {
-    return NextResponse.json(
-      {
-        error:
-          'Bounce checking from outside a session is off. Set BOUNCE_CHECK_TOKEN to enable it.',
-      },
-      { status: 404 },
-    );
-  }
-
-  const header = request.headers.get('authorization') ?? '';
-  const supplied = header.startsWith('Bearer ') ? header.slice(7) : header;
-
-  if (!supplied || !tokenMatches(supplied, expected)) {
-    return new NextResponse(null, { status: 401 });
+  const allowed = checkSchedulerToken(request, 'BOUNCE_CHECK_TOKEN');
+  if (!allowed.ok) {
+    return allowed.error
+      ? NextResponse.json({ error: allowed.error }, { status: allowed.status })
+      : new NextResponse(null, { status: allowed.status });
   }
 
   /*

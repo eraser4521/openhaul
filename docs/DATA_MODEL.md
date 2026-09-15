@@ -159,6 +159,9 @@ the procedure linking the signature to the person; every field here exists to an
 | `refunds` | Money going back out. A separate table, not a negative payment — every figure that asks what an invoice collected sums the payments |
 | `customer_credits` | Overpayments kept on account and later spent. The balance is the sum of these rows and is stored nowhere, because a running total on the customer record drifts the first time a movement is corrected. Every movement names an invoice |
 | `statements` | A statement of account that was produced: the period, what it said was owed, and the frozen PDF. A snapshot on purpose — the covering email has to describe the attachment, not the account as it now stands |
+| `statement_schedules` | When statements go out, one row per organisation. A cadence, not a timer: something outside has to poke the app |
+| `statement_runs` | One occurrence of the schedule. `(org_id, due_on)` is unique, and that uniqueness is the entire concurrency design — whoever writes the row owns the run |
+| `statement_run_items` | What happened to one customer in one run. Only customers the run tried to act on get a row; the reason a send failed lives here |
 | `expenses` | Fuel, tolls, car-pulling, with a receipt photo. `reviewedAt` separates "nobody has decided" from "decided no", which one boolean cannot |
 | `settlements` | Driver pay: revenue minus broker fees, times the pay rate |
 | `accessorial_rates` | The carrier's own named charges, with a rate and the unit it is counted in |

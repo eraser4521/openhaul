@@ -409,6 +409,166 @@ export const statements = sqliteTable(
 
 export type Statement = typeof statements.$inferSelect;
 
+export const STATEMENT_CADENCES = ['off', 'weekly', 'monthly'] as const;
+export type StatementCadence = (typeof STATEMENT_CADENCES)[number];
+
+/**
+ * When statements go out, for one organisation.
+ *
+ * One row per organisation rather than one per customer. A carrier sends
+ * statements on a day of the month, to everybody, or not at all — a per
+ * customer cadence is a screen nobody would fill in, and the one real
+ * exception is "not this one", which is a flag on the customer.
+ */
+export const statementSchedules = sqliteTable(
+  'statement_schedules',
+  {
+    id: pk(),
+    orgId: orgId(),
+
+    cadence: text('cadence', { enum: STATEMENT_CADENCES }).notNull().default('off'),
+    /**
+     * Capped at 28 by validation, not by convention. A schedule set to the
+     * 31st would skip February entirely and fire on different days of the
+     * month for the rest of the year, which is not what anybody meant.
+     */
+    dayOfMonth: integer('day_of_month').notNull().default(1),
+    /** 0 is Sunday, matching `Date.getUTCDay`. */
+    dayOfWeek: integer('day_of_week').notNull().default(1),
+
+    /** How far back each statement lists movements. */
+    windowDays: integer('window_days').notNull().default(90),
+    /** Below this, chasing costs more than the debt. */
+    minimumBalanceCents: money('minimum_balance_cents').notNull().default(0),
+    /**
+     * Statement a customer who owes nothing but is holding credit with the
+     * carrier. Telling them is the entire reason the balance is visible.
+     */
+    includeCreditHolders: bool('include_credit_holders').notNull().default(true),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('statement_schedules_org_id_uq').on(t.orgId, t.id),
+    uniqueIndex('statement_schedules_org_uq').on(t.orgId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'statement_schedules_org_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type StatementSchedule = typeof statementSchedules.$inferSelect;
+
+export const RUN_TRIGGERS = ['schedule', 'manual'] as const;
+export type RunTrigger = (typeof RUN_TRIGGERS)[number];
+
+/**
+ * One occurrence of the schedule, run once.
+ *
+ * `due_on` is unique per organisation and that is the whole concurrency
+ * design: whoever inserts the row owns the run, and a second trigger for the
+ * same occurrence finds it taken and stops. A cron line that fires twice, a
+ * retry after a timeout, and somebody pressing the button by hand all
+ * converge on one run.
+ *
+ * A missed occurrence is never made up. If the machine was off for two
+ * months, the next run covers it — balances are always as at today, so
+ * sending a statement dated now for a period that closed six weeks ago would
+ * say nothing the current one does not.
+ */
+export const statementRuns = sqliteTable(
+  'statement_runs',
+  {
+    id: pk(),
+    orgId: orgId(),
+
+    /** Midnight UTC of the scheduled day this run covers. */
+    dueOn: ts('due_on').notNull(),
+    trigger: text('trigger', { enum: RUN_TRIGGERS }).notNull(),
+
+    startedAt: ts('started_at').notNull(),
+    finishedAt: ts('finished_at'),
+
+    /** Customers examined, including those with nothing to say. */
+    consideredCount: integer('considered_count').notNull().default(0),
+    sentCount: integer('sent_count').notNull().default(0),
+    failedCount: integer('failed_count').notNull().default(0),
+    skippedCount: integer('skipped_count').notNull().default(0),
+
+    /** Set when the run itself could not proceed, not when one customer failed. */
+    error: text('error'),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('statement_runs_org_id_uq').on(t.orgId, t.id),
+    uniqueIndex('statement_runs_org_due_uq').on(t.orgId, t.dueOn),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'statement_runs_org_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type StatementRun = typeof statementRuns.$inferSelect;
+
+export const RUN_OUTCOMES = ['sent', 'failed', 'skipped'] as const;
+export type RunOutcome = (typeof RUN_OUTCOMES)[number];
+
+/**
+ * What happened to one customer in one run.
+ *
+ * Only customers the run tried to act on get a row. Somebody with nothing
+ * outstanding and nothing on account is counted and forgotten; somebody who
+ * should have received one and could not — no address on file, a statement
+ * that would not reconcile — is a row with the reason, because that is a thing
+ * a person has to go and fix.
+ */
+export const statementRunItems = sqliteTable(
+  'statement_run_items',
+  {
+    id: pk(),
+    orgId: orgId(),
+    runId: text('run_id').notNull(),
+    customerId: text('customer_id').notNull(),
+    /** Null when nothing was produced, which is every skip. */
+    statementId: text('statement_id'),
+
+    outcome: text('outcome', { enum: RUN_OUTCOMES }).notNull(),
+    /** Why it failed or was skipped. Null on success. */
+    detail: text('detail'),
+
+    balanceCents: money('balance_cents').notNull().default(0),
+    heldCents: money('held_cents').notNull().default(0),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('statement_run_items_org_id_uq').on(t.orgId, t.id),
+    index('statement_run_items_run_idx').on(t.orgId, t.runId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'statement_run_items_org_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.runId],
+      foreignColumns: [statementRuns.orgId, statementRuns.id],
+      name: 'statement_run_items_run_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.customerId],
+      foreignColumns: [customers.orgId, customers.id],
+      name: 'statement_run_items_customer_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type StatementRunItem = typeof statementRunItems.$inferSelect;
+
 /** Driver-incurred costs against a load, with a receipt photo. */
 export const expenses = sqliteTable(
   'expenses',

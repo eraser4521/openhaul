@@ -110,6 +110,7 @@ template does not reproduce the record that was actually agreed.
 | **Credits** | A reduction is a second document referencing the invoice, never an edit to the one already sent |
 | **Overpayments** | Sent back, or kept on account against the customer's next invoice — a ledger whose every movement names an invoice |
 | **Statements** | A customer's account on one page, refused rather than sent if the movements do not add up to the balance |
+| **On a schedule** | Statements posted out monthly or weekly by a cron line, where an occurrence runs once however often it is poked |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -465,6 +466,35 @@ The document is frozen like every other, and the row that records it keeps what 
 matters for the covering email, which describes the attachment rather than the account — recompute
 the balance at send time and the reader has two different numbers in front of them for the same
 thing.
+
+Statements go out on a schedule, which in an application with no daemon means the cadence is a
+rule rather than a timer. Something outside — a cron line, a systemd timer, whatever the host has —
+posts to an endpoint, and the app works out which scheduled occurrence that moment belongs to. One
+line covers any cadence, calling it hourly sends nothing extra, and a retry after a timeout finds
+the occurrence already claimed rather than sending everything twice. The occurrence date is unique
+per organisation, and that uniqueness is the whole concurrency design.
+
+Three decisions hold it together, and each is about what *not* to do.
+
+A missed run is not made up. A machine off for a fortnight sends one statement when it returns
+rather than a fortnight of them: every balance is as at the moment it was produced, so the
+occurrence that was missed has nothing left to say that the current one does not.
+
+One customer's failure does not stop the other forty-nine. Every customer is produced and sent
+inside its own attempt, and what went wrong is written against that customer — no address on file,
+a statement that would not reconcile, a refused recipient — rather than thrown. A statement that
+was produced but not sent still exists and can go by hand.
+
+And nothing is retried inside a run. An outage during a fifty-customer sweep would otherwise become
+several hundred attempts at a server already refusing. Failures are recorded, shown in Settings
+after every run, and wait for a person or for the next occurrence. The endpoint returns 200 even
+when sends failed, because the request was handled and a retry would only find the occurrence
+taken — watch the run summary, not the HTTP status.
+
+Nobody is sent a statement saying nothing. A customer who owes nothing and holds nothing is counted
+and left alone, because the fastest way to teach an accounts department to filter a sender is to
+mail them a zero every month. Somebody holding credit does get one at a zero balance: telling them
+the carrier has their money is the reason the balance is recorded at all.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

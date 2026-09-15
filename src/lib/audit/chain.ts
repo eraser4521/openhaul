@@ -263,6 +263,8 @@ export const AUDIT = {
   creditApplied: 'credit.applied',
   creditMovementRemoved: 'credit.movement.removed',
   statementIssued: 'statement.issued',
+  statementScheduleChanged: 'statement.schedule.changed',
+  statementRunFinished: 'statement.run.finished',
 
   driverCreated: 'driver.created',
   expenseRecorded: 'expense.recorded',

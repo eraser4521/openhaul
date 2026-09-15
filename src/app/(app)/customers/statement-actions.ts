@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
 import { buildStatement } from '@/lib/invoices/statement-document';
 import { STATEMENT_WINDOWS } from '@/lib/invoices/statement';
+import { setStatementsEnabled } from '@/lib/invoices/statement-run';
 
 /**
  * Producing a statement of account.
@@ -63,4 +64,29 @@ export async function buildStatementAction(
     balanceCents: result.balanceCents,
     heldCents: result.heldCents,
   };
+}
+
+/**
+ * Turning scheduled statements off for one customer.
+ *
+ * `invoice.read`, matching who can produce one by hand. Deciding that a
+ * particular broker does not want a monthly statement is a bookkeeping
+ * preference, not a change to what the organisation does.
+ */
+export async function setStatementsEnabledAction(
+  customerId: string,
+  enabled: boolean,
+): Promise<StatementActionResult> {
+  let context;
+  try {
+    context = await requireCapability('invoice.read');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  await setStatementsEnabled(context.db, customerId, enabled);
+
+  revalidatePath('/customers');
+  revalidatePath('/settings');
+  return { ok: true };
 }

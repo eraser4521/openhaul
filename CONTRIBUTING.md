@@ -28,10 +28,12 @@ npm run build
 
 ## Where help is most useful
 
-**Sending statements on a schedule.** A statement is produced when somebody asks for one. Most
-carriers want them going out to every customer with a balance on the first of the month, which
-means a job runner this project does not have, and a decision about what happens when one of the
-fifty fails to send. Worth doing properly or not at all.
+**A dunning ladder.** Statements go out on a cadence, but a customer ninety days late gets the same
+document as one who is current. What collections actually needs is a sequence — a reminder, then a
+firmer one, then a final notice before it goes elsewhere — with the wording and the timing set by
+the carrier, and a record of which stage each debt has reached. That is a state machine per invoice
+rather than a schedule per customer, and it is easy to build something that harasses people by
+accident.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

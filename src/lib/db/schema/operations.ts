@@ -163,6 +163,15 @@ export const customers = sqliteTable(
     postalCode: text('postal_code'),
 
     defaultPaymentTerms: text('default_payment_terms', { enum: PAYMENT_TERMS }),
+    /**
+     * Whether scheduled statements go to this customer.
+     *
+     * The one real exception to an organisation-wide schedule. A customer who
+     * pays on delivery, or whose account is factored, does not want a monthly
+     * statement — and turning the whole schedule off to spare them would stop
+     * everybody else's.
+     */
+    statementsEnabled: bool('statements_enabled').notNull().default(true),
     /** Free-text notes; never store payment credentials here. */
     notes: text('notes'),
     archivedAt: ts('archived_at'),
