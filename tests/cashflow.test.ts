@@ -7,6 +7,7 @@ import {
   groupStanding,
   netOf,
   recurringMovements,
+  STANDING_DIRECTION,
   splitPayable,
   splitReceivable,
   unknowns,
@@ -185,6 +186,7 @@ describe('an unpaid settlement', () => {
     periodEnd: new Date('2026-09-12T00:00:00Z'),
     netPayCents: 214_000,
     draft: false,
+    leased: true,
   };
 
   it('is dated by the fifteen days the law allows, not by when anybody means to pay', () => {
@@ -216,6 +218,31 @@ describe('an unpaid settlement', () => {
 
     expect(movements).toEqual([]);
     expect(standing[0]).toMatchObject({ reason: 'settlement_late', daysWaiting: 30 });
+  });
+
+  it('refuses to date a company driver by a rule that does not bind them', () => {
+    /*
+     * 49 CFR Part 376 governs a lease with an owner-operator. A company driver
+     * is paid under wage law, which this application does not model — so there
+     * is no statutory clock, no date, and the money goes to the undated pile
+     * rather than onto a week with the wrong regulation printed beside it.
+     */
+    const { movements, standing } = splitPayable({ ...payable, leased: false }, NOW);
+
+    expect(movements).toEqual([]);
+    expect(standing[0]).toMatchObject({
+      reason: 'payroll_undated',
+      amountCents: 214_000,
+      counterparty: 'Marcus Ruiz',
+    });
+  });
+
+  it('still counts a company driver as money going out', () => {
+    // Undated is not the same as invisible. It is real money and the account
+    // will see it leave; what is unknown is the day.
+    const { standing } = splitPayable({ ...payable, leased: false }, NOW);
+
+    expect(STANDING_DIRECTION[standing[0]!.reason]).toBe('out');
   });
 });
 

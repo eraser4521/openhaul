@@ -118,6 +118,7 @@ template does not reproduce the record that was actually agreed.
 | **Cash coming** | Promised, falling due and going out by week, with everything that has no date kept off the timeline and named |
 | **A running balance** | What the bank said and when, plus what leaves every month, so the weeks answer whether Friday works |
 | **One warning** | An email when the account is projected to go under — never twice for the same news, and retracted when it passes |
+| **Before the fifteen days** | Every leased settlement running out of time, on the dashboard, while there is still time to do something |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -657,6 +658,30 @@ the age, and when the figure is more than a fortnight old says plainly that ente
 balance is the one thing that would make it worth acting on either way. With no balance at all it
 sends nothing, ever: there is nothing to project from, and a message saying so would arrive forever
 and tell nobody anything.
+
+One more deadline gets said out loud, and it is somebody else's money. 49 CFR 376.12(f) gives a
+carrier fifteen days from a leased owner-operator's paperwork to pay them. The settlement screen
+always showed that date and the driver list always marked a settlement that had passed it, but both
+answer the question once somebody has gone looking at that driver — by which time the only useful
+version of the information, that there is still time, has expired. The dashboard now names every
+settlement inside five days of its deadline, worst first, beside the insurance that is about to
+lapse. A draft sorts ahead of a finalised settlement falling on the same day, because the clock runs
+from the driver's paperwork rather than from the day somebody gets round to drawing the statement,
+so a draft needs two things done rather than one.
+
+It is not a fourth thing that sends email, and that is the whole design decision. The cash warning
+earns its keep by carrying exactly one kind of news; a second kind in the same channel turns it into
+the digest it was built not to be. Nor does it deserve a channel of its own — a solvency warning has
+to reach somebody who is driving, because what they might do about it is decline the next load,
+whereas the answer to a settlement deadline is to draw a statement and pay it, at a screen, with a
+fortnight of runway.
+
+The regulation binds narrowly and so does the warning. Part 376 governs a lease with an
+owner-operator; a company driver is on payroll under wage law, which this application does not
+model. Nothing warns about a company driver, the note under the list says so rather than leaving a
+carrier to assume there was nothing to know, and the cash timeline no longer dates their settlement
+by a rule that does not bind them — it goes to the undated pile with the reason, like an invoice
+with no payment terms.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

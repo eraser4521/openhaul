@@ -243,16 +243,27 @@ export async function cashflowReport(
 
   /* --- Going out ------------------------------------------------------- */
 
+  const driverById = new Map(drivers.map((driver) => [driver.id, driver]));
+
   for (const settlement of settlements) {
     if (settlement.paidAt !== null) continue;
+
+    const driver = driverById.get(settlement.driverId);
 
     const split = splitPayable(
       {
         settlementId: settlement.id,
-        driverName: driverName.get(settlement.driverId) ?? 'Unknown driver',
+        driverName: driver?.displayName ?? 'Unknown driver',
         periodEnd: settlement.periodEnd,
         netPayCents: settlement.netPayCents,
         draft: settlement.finalizedAt === null,
+        /*
+         * An unknown driver is treated as unleased rather than leased. Getting
+         * this wrong in that direction puts money in the undated pile; the
+         * other way round would print a regulation against somebody it may
+         * not govern.
+         */
+        leased: driver?.employmentType === 'owner_operator',
       },
       now,
     );

@@ -41,15 +41,16 @@ on a patched version itself.
 
 ## Where help is most useful
 
-**Warning a driver before the fifteen days run out.** 49 CFR 376.12(f) gives a carrier fifteen days
-from a leased driver's paperwork to pay them, and this application already knows the deadline well
-enough to put unpaid settlements on the cash timeline and to list the breached ones underneath. What
-it does not do is say anything before the line is crossed, which is the only moment the information
-is worth having. The cash warning channel is the obvious place to put it and the wrong one: that
-channel earns its keep by carrying exactly one kind of news, and a second kind would dilute it into
-the weekly digest it was built not to be. So the interesting part is not detecting the breach — that
-is a date subtraction — but deciding whether this belongs in its own channel, on the dashboard, or
-nowhere at all until somebody asks for it.
+**A promise to drivers that nothing checks.** Every settlement statement handed to a leased
+owner-operator prints a sentence saying their escrow will be returned within forty-five days of the
+lease ending, because 49 CFR 376.12(h) requires it. The application computes the balance, prints the
+promise, and then has no idea whether it was kept: nothing anchors the forty-five days. The pieces
+are nearly there — `drivers.deactivatedAt` is the closest thing to a lease ending, and
+`driverEscrowBalance` already knows what is held — but wiring them together is the easy half. The
+hard half is that this deadline concerns money belonging to somebody who has already left, and the
+person who would act on the warning is the one who benefits from forgetting it. Whether a departed
+driver should be able to see their own escrow standing, rather than relying on the carrier being
+reminded, is the question worth answering before any of it gets built.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

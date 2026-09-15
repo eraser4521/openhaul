@@ -250,6 +250,7 @@ export const STANDING_REASONS = [
   'promise_late',
   'no_due_date',
   'settlement_late',
+  'payroll_undated',
   'unreimbursed',
   'refund_owed',
 ] as const;
@@ -260,6 +261,7 @@ export const STANDING_DIRECTION: Record<StandingReason, 'in' | 'out'> = {
   promise_late: 'in',
   no_due_date: 'in',
   settlement_late: 'out',
+  payroll_undated: 'out',
   unreimbursed: 'out',
   refund_owed: 'out',
 };
@@ -269,6 +271,7 @@ export const STANDING_LABEL: Record<StandingReason, string> = {
   promise_late: 'Promised for a day already gone',
   no_due_date: 'No due date on the invoice',
   settlement_late: 'Settlement past its fifteen days',
+  payroll_undated: 'Company driver pay, with no date on file',
   unreimbursed: 'Approved expenses with no settlement drawn',
   refund_owed: 'Overpayments still held',
 };
@@ -286,6 +289,10 @@ export const STANDING_NOTE: Record<StandingReason, string> = {
   settlement_late:
     '49 CFR 376.12(f) allows fifteen days from the paperwork for a leased driver. These are ' +
     'past that.',
+  payroll_undated:
+    'Owed, but on no date this application knows. The fifteen days in 49 CFR 376.12(f) govern a ' +
+    'lease with an owner-operator; a company driver is paid under wage law, which is not ' +
+    'modelled here — so guessing a date would mean applying the wrong rule.',
   unreimbursed:
     'Money the driver has already spent and is owed back. It has no date until somebody draws ' +
     'the settlement that carries it.',
@@ -454,6 +461,15 @@ export interface Payable {
   netPayCents: number;
   /** Still a draft. It counts, and the row says so. */
   draft: boolean;
+  /**
+   * Whether 49 CFR Part 376 governs this settlement at all.
+   *
+   * Only a lease with an owner-operator. A company driver on payroll is paid
+   * under wage law, which this application does not model — so their pay has
+   * no date here, and dating it by the fifteen days would be citing a
+   * regulation at somebody it does not bind.
+   */
+  leased: boolean;
 }
 
 /**
@@ -475,8 +491,30 @@ export function splitPayable(
 ): { movements: Movement[]; standing: Standing[] } {
   if (row.netPayCents <= 0) return { movements: [], standing: [] };
 
-  const due = paymentDueBy(row.periodEnd);
   const detail = row.draft ? 'Settlement still in draft' : 'Settlement ready to pay';
+
+  /*
+   * Without a lease there is no statutory clock, so there is no date — and
+   * this page does not invent one. It goes to the undated pile with the
+   * reason, which is the same treatment an invoice with no payment terms gets.
+   */
+  if (!row.leased) {
+    return {
+      movements: [],
+      standing: [
+        {
+          key: `settlement:${row.settlementId}`,
+          reason: 'payroll_undated',
+          amountCents: row.netPayCents,
+          reference: detail,
+          counterparty: row.driverName,
+          daysWaiting: daysApart(row.periodEnd, now),
+        },
+      ],
+    };
+  }
+
+  const due = paymentDueBy(row.periodEnd);
 
   if (startOfDay(due).getTime() >= startOfDay(now).getTime()) {
     return {

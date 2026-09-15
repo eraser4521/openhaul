@@ -8,11 +8,15 @@ import {
   ScanLine,
   Truck,
   TriangleAlert,
+  Wallet,
 } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { loads } from '@/lib/db/schema';
 import { PageBody, PageHeader } from '@/components/app/page-header';
 import { expiringCertificates } from '@/lib/insurance/certificates';
+import { settlementsDue } from '@/lib/settlements/deadline-report';
+import { CITATION, describeAction, describeDeadline, lateCount } from '@/lib/settlements/deadline';
+import { can } from '@/lib/auth/capabilities';
 import { KIND_LABEL } from '@/lib/insurance/status';
 import { ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -81,6 +85,18 @@ export default async function DashboardPage() {
   const allLoads = await db.select('loads');
   const lapsing = await expiringCertificates(db);
 
+  /*
+   * Settlements running out of time. Gathered here rather than pushed down a
+   * channel: unlike a solvency warning, the answer to this is to draw a
+   * statement and pay it, which happens at a screen anyway — and it has a
+   * fortnight of runway rather than an afternoon. It belongs where somebody
+   * already looks before starting work.
+   */
+  const dueSettlements = can(session.role, 'settlement.read')
+    ? await settlementsDue(db)
+    : [];
+  const overdueSettlements = lateCount(dueSettlements);
+
   const delivered = allLoads.filter((l) => l.deliveredAt !== null);
   const revenueCents = delivered.reduce((sum, l) => sum + (l.rateCents ?? 0), 0);
   const totalMiles = delivered.reduce((sum, l) => sum + (l.distanceMiles ?? 0), 0);
@@ -138,6 +154,51 @@ export default async function DashboardPage() {
               A broker will not tender to a carrier whose certificate has run out, and cargo cover
               is not something the FMCSA lookup can confirm on your behalf.
             </p>
+          </Card>
+        )}
+
+        {dueSettlements.length > 0 && (
+          <Card className={cn('p-5', overdueSettlements > 0 ? 'border-danger/40' : 'border-warn/40')}>
+            <p
+              className={cn(
+                'flex items-start gap-2 text-sm font-medium',
+                overdueSettlements > 0 ? 'text-danger' : 'text-warn',
+              )}
+            >
+              <Wallet className="mt-0.5 size-4 shrink-0" aria-hidden />
+              {overdueSettlements > 0
+                ? overdueSettlements === 1
+                  ? 'A settlement is past its fifteen days'
+                  : `${overdueSettlements} settlements are past their fifteen days`
+                : dueSettlements.length === 1
+                  ? 'A settlement is coming up on its fifteen days'
+                  : 'Settlements are coming up on their fifteen days'}
+            </p>
+
+            <ul className="mt-2 space-y-1 pl-6 text-xs leading-relaxed text-ink-secondary">
+              {dueSettlements.slice(0, 4).map((row) => (
+                <li key={row.settlementId}>
+                  <Link
+                    href={`/settlements/${row.settlementId}`}
+                    className="hover:text-ink hover:underline"
+                  >
+                    {row.driverName} — {money(row.netPayCents)},{' '}
+                    <span className={row.state === 'late' ? 'text-danger' : 'text-warn'}>
+                      {describeDeadline(row)}
+                    </span>{' '}
+                    · {describeAction(row)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            {dueSettlements.length > 4 && (
+              <p className="mt-1 pl-6 text-xs text-ink-muted">
+                and {dueSettlements.length - 4} more.
+              </p>
+            )}
+
+            <p className="mt-2 pl-6 text-xs leading-relaxed text-ink-muted">{CITATION}</p>
           </Card>
         )}
 
