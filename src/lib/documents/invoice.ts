@@ -6,6 +6,9 @@ import {
   MUTED,
   PANEL,
   WARNING,
+  addressBlock,
+  dateText,
+  moneyText,
   type DocumentBrand,
 } from './layout';
 import {
@@ -106,35 +109,6 @@ export interface InvoiceInput {
 
   /** The carrier's letterhead, colour, remittance block and standing notes. */
   brand?: DocumentBrand | null;
-}
-
-function moneyText(cents: number, currency = 'USD'): string {
-  const sign = cents < 0 ? '-' : '';
-  const absolute = Math.abs(cents);
-  const body = `${Math.floor(absolute / 100).toLocaleString('en-US')}.${String(absolute % 100).padStart(2, '0')}`;
-  return currency === 'USD' ? `${sign}$${body}` : `${sign}${body} ${currency}`;
-}
-
-function dateText(date: Date): string {
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-function addressBlock(party: InvoiceParty): string {
-  return [
-    party.contactName,
-    party.addressLine1,
-    party.addressLine2,
-    [party.city, party.state, party.postalCode].filter(Boolean).join(' ').trim() || null,
-    party.phone,
-    party.email,
-  ]
-    .filter(Boolean)
-    .join('\n');
 }
 
 /**

@@ -153,7 +153,10 @@ async function candidatesFor(
           loadId: row.loadId,
         })),
         ...docs
-          .filter((row) => row.kind === 'invoice' || row.kind === 'credit_note')
+          .filter(
+            (row) =>
+              row.kind === 'invoice' || row.kind === 'credit_note' || row.kind === 'statement',
+          )
           .map((row) => ({
             ...blank,
             id: row.id,

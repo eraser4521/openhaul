@@ -6,6 +6,14 @@ import { renderInvoice } from '../documents/invoice';
 import { renderCreditNote } from '../documents/credit-note';
 import { renderSettlement } from '../documents/settlement';
 import { renderClaimLetter } from '../documents/claim-letter';
+import { renderStatement } from '../documents/statement';
+import {
+  agedTotals,
+  openItems,
+  totalsFor,
+  withRunningBalance,
+  type StatementEntry,
+} from '../invoices/statement';
 
 /**
  * A specimen of each document, rendered through the real renderers.
@@ -262,6 +270,88 @@ async function specimenClaimLetter(org: Organization, brand: DocumentBrand): Pro
   });
 }
 
+async function specimenStatement(org: Organization, brand: DocumentBrand): Promise<Uint8Array> {
+  const from = new Date('2026-01-01T00:00:00Z');
+
+  /*
+   * Built through the same pure helpers the real statement uses, so the
+   * specimen cannot show a total the arithmetic would never produce. The
+   * figures are chosen to exercise every row: something overdue, something
+   * not due yet, a credit, and money held on account.
+   */
+  const entries: StatementEntry[] = [
+    {
+      at: new Date('2026-01-14T00:00:00Z'),
+      kind: 'invoice',
+      reference: 'SPECIMEN-1',
+      detail: null,
+      dueCents: 294_000,
+      heldCents: 0,
+    },
+    {
+      at: new Date('2026-02-02T00:00:00Z'),
+      kind: 'payment',
+      reference: 'SPECIMEN-1',
+      detail: 'ACH SPECIMEN',
+      dueCents: -344_000,
+      heldCents: 0,
+    },
+    {
+      at: new Date('2026-02-04T00:00:00Z'),
+      kind: 'credit_kept',
+      reference: 'SPECIMEN-1',
+      detail: 'Overpayment held at your request',
+      dueCents: 50_000,
+      heldCents: 50_000,
+    },
+    {
+      at: new Date('2026-02-20T00:00:00Z'),
+      kind: 'invoice',
+      reference: 'SPECIMEN-2',
+      detail: null,
+      dueCents: 187_500,
+      heldCents: 0,
+    },
+  ];
+
+  const totals = totalsFor(entries, from);
+
+  const items = openItems(
+    [
+      {
+        number: 'SPECIMEN-2',
+        issuedAt: new Date('2026-02-20T00:00:00Z'),
+        dueAt: new Date('2026-03-22T00:00:00Z'),
+        totalCents: 187_500,
+        paidCents: 0,
+      },
+    ],
+    ISSUED,
+  );
+
+  return renderStatement({
+    issuedAt: ISSUED,
+    periodFrom: from,
+    periodLabel: 'Last 3 months',
+    brand,
+    carrier: carrierParty(org),
+    billTo: {
+      name: 'Specimen Logistics Brokerage',
+      contactName: 'Accounts Payable',
+      addressLine1: '1 Specimen Plaza',
+      city: 'Dallas',
+      state: 'TX',
+      postalCode: '75201',
+      email: 'ap@specimen.example',
+    },
+    currency: 'USD',
+    totals,
+    openItems: items,
+    aged: agedTotals(items),
+    activity: withRunningBalance(entries, totals.openingDueCents),
+  });
+}
+
 export async function renderSpecimen(
   scope: TemplateScope,
   org: Organization,
@@ -274,6 +364,8 @@ export async function renderSpecimen(
       return specimenInvoice(org, brand);
     case 'credit_note':
       return specimenCreditNote(org, brand);
+    case 'statement':
+      return specimenStatement(org, brand);
     case 'settlement':
       return specimenSettlement(org, brand);
     case 'claim':

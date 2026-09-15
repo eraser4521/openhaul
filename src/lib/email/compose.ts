@@ -33,6 +33,10 @@ export interface ComposeContext {
   /** Settlement statements. */
   periodLabel?: string | null;
   netPayCents?: number | null;
+
+  /** Statements of account. */
+  heldCents?: number | null;
+  openItemCount?: number | null;
 }
 
 export interface ComposedMessage {
@@ -187,6 +191,34 @@ export function compose(kind: DocumentKind, context: ComposeContext): ComposedMe
           'wrong, tell us before it is paid — a correction afterwards has to go on the next one.' +
           signOff(carrierName),
       };
+
+    case 'statement': {
+      const owed = context.balanceCents ?? 0;
+      const held = context.heldCents ?? 0;
+      const items = context.openItemCount ?? 0;
+
+      return {
+        subject:
+          `Statement of account${context.periodLabel ? ` — ${context.periodLabel}` : ''}` +
+          (owed > 0 ? ` — ${money(owed)} outstanding` : ' — nothing outstanding'),
+        body:
+          `${greeting(context.recipientName)}\n\n` +
+          'Your statement of account is attached. It is not an invoice and nothing on it is a ' +
+          'new charge — every amount is already on an invoice you hold.\n\n' +
+          (owed > 0
+            ? `${money(owed)} is outstanding across ${items} invoice${items === 1 ? '' : 's'}, ` +
+              'itemised on the statement with how late each one is.\n\n'
+            : 'Nothing is outstanding. Thank you.\n\n') +
+          (held > 0
+            ? `We are also holding ${money(held)} of yours from an overpayment you asked us to ` +
+              'carry rather than refund. Tell us which invoice to put it against, or ask for it ' +
+              'back at any time.\n\n'
+            : '') +
+          'If anything on it does not match your records, tell us which line and we will go ' +
+          'through it.' +
+          signOff(carrierName),
+      };
+    }
 
     default:
       return {

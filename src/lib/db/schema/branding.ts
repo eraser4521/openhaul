@@ -33,6 +33,7 @@ export const TEMPLATE_SCOPES = [
   'pod',
   'invoice',
   'credit_note',
+  'statement',
   'settlement',
   'claim',
 ] as const;

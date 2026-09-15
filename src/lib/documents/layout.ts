@@ -664,6 +664,60 @@ export class DocBuilder {
   }
 }
 
+/* -------------------------------------------------------------------------
+ * Formatting every document agrees on
+ * ---------------------------------------------------------------------- */
+
+/**
+ * Money on a document, always with its sign shown.
+ *
+ * Here rather than in each generator because three of them had their own
+ * identical copy and a fourth was about to. A statement and the invoice it
+ * summarises printing an amount two different ways is exactly the kind of
+ * discrepancy a customer queries instead of paying.
+ */
+export function moneyText(cents: number, currency = 'USD'): string {
+  const sign = cents < 0 ? '-' : '';
+  const absolute = Math.abs(cents);
+  const body = `${Math.floor(absolute / 100).toLocaleString('en-US')}.${String(absolute % 100).padStart(2, '0')}`;
+  return currency === 'USD' ? `${sign}$${body}` : `${sign}${body} ${currency}`;
+}
+
+/** UTC deliberately: a document dated by the reader's timezone shifts a day. */
+export function dateText(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** The fields of a party that belong under its name, one per line. */
+export interface PartyAddress {
+  contactName?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}
+
+export function addressBlock(party: PartyAddress): string {
+  return [
+    party.contactName,
+    party.addressLine1,
+    party.addressLine2,
+    [party.city, party.state, party.postalCode].filter(Boolean).join(' ').trim() || null,
+    party.phone,
+    party.email,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 export interface ColumnContext {
   x: number;
   width: number;

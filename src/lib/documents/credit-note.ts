@@ -5,6 +5,9 @@ import {
   MARGIN,
   MUTED,
   PANEL,
+  addressBlock,
+  dateText,
+  moneyText,
   type DocumentBrand,
 } from './layout';
 import type { InvoiceParty } from './invoice';
@@ -54,34 +57,6 @@ export interface CreditNoteInput {
    * about which document they attach to.
    */
   brand?: DocumentBrand | null;
-}
-
-function moneyText(cents: number, currency = 'USD'): string {
-  const sign = cents < 0 ? '-' : '';
-  const absolute = Math.abs(cents);
-  const body = `${Math.floor(absolute / 100).toLocaleString('en-US')}.${String(absolute % 100).padStart(2, '0')}`;
-  return currency === 'USD' ? `${sign}$${body}` : `${sign}${body} ${currency}`;
-}
-
-function dateText(date: Date): string {
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-function addressBlock(party: InvoiceParty): string {
-  return [
-    party.contactName,
-    party.addressLine1,
-    [party.city, party.state, party.postalCode].filter(Boolean).join(' ').trim() || null,
-    party.phone,
-    party.email,
-  ]
-    .filter(Boolean)
-    .join('\n');
 }
 
 export async function renderCreditNote(input: CreditNoteInput): Promise<Uint8Array> {

@@ -353,6 +353,62 @@ export const customerCredits = sqliteTable(
 
 export type CustomerCredit = typeof customerCredits.$inferSelect;
 
+/**
+ * A statement of account that was produced for a customer.
+ *
+ * The frozen PDF is the artefact; this row is the record that it was made,
+ * what it said, and what period it covered. Kept because three questions need
+ * it and none of them can be answered by a file: when did we last statement
+ * this customer, what did that statement claim was owed, and what should the
+ * covering email say about the document already attached to it.
+ *
+ * The figures are a snapshot on purpose. An email that recomputed the balance
+ * would describe the account as it stands now while the attachment describes
+ * it as it stood then, and the customer would be reading two different numbers
+ * for the same thing.
+ */
+export const statements = sqliteTable(
+  'statements',
+  {
+    id: pk(),
+    orgId: orgId(),
+    customerId: text('customer_id').notNull(),
+    documentId: text('document_id'),
+
+    /** Balances are as at this moment; movements are listed from `periodFrom`. */
+    issuedAt: ts('issued_at').notNull(),
+    periodFrom: ts('period_from').notNull(),
+    windowDays: integer('window_days').notNull(),
+
+    /** What the customer owed, as the statement stated it. */
+    balanceCents: money('balance_cents').notNull().default(0),
+    /** What the carrier was holding for them. */
+    heldCents: money('held_cents').notNull().default(0),
+    currency: currency(),
+
+    openItemCount: integer('open_item_count').notNull().default(0),
+    entryCount: integer('entry_count').notNull().default(0),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('statements_org_id_uq').on(t.orgId, t.id),
+    index('statements_customer_idx').on(t.orgId, t.customerId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'statements_org_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.customerId],
+      foreignColumns: [customers.orgId, customers.id],
+      name: 'statements_customer_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type Statement = typeof statements.$inferSelect;
+
 /** Driver-incurred costs against a load, with a receipt photo. */
 export const expenses = sqliteTable(
   'expenses',

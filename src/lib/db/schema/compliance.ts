@@ -21,6 +21,11 @@ export const DOCUMENT_KINDS = [
   'claim_disposition',
   'settlement',
   'credit_note',
+  /**
+   * A customer's account as at today: what they owe, what the carrier is
+   * holding for them, and every movement since the period opened.
+   */
+  'statement',
   'other',
 ] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];

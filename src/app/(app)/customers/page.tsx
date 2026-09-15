@@ -11,6 +11,8 @@ import { InsurancePanel } from '@/components/app/insurance-panel';
 import { listCertificates } from '@/lib/insurance/certificates';
 import { balancesByCustomer, movementsFor } from '@/lib/invoices/customer-credit';
 import { CreditLedger } from '@/components/app/credit-ledger';
+import { StatementPanel } from '@/components/app/statement-panel';
+import { statementsFor, statementView } from '@/lib/invoices/statement-document';
 import { can } from '@/lib/auth/capabilities';
 
 export const metadata = { title: 'Customers' };
@@ -38,6 +40,31 @@ export default async function CustomersPage() {
         .filter((customer) => balances.has(customer.id))
         .map(async (customer) => [customer.id, await movementsFor(db, customer.id)] as const),
     ),
+  );
+
+  const canStatement = can(session.role, 'invoice.read');
+
+  /*
+   * The account position is worked out per customer rather than once, because
+   * the figure on the card has to be the figure a statement would print — and
+   * that comes from the same function the document uses. Two ways of counting
+   * what a customer owes is how a screen and a document start disagreeing.
+   */
+  const accounts = new Map(
+    canStatement
+      ? await Promise.all(
+          customers.map(
+            async (customer) =>
+              [
+                customer.id,
+                {
+                  view: await statementView(db, customer.id, { windowDays: 90 }),
+                  history: await statementsFor(db, customer.id),
+                },
+              ] as const,
+          ),
+        )
+      : [],
   );
   const configured = hasFmcsaKey();
   const canEdit = can(session.role, 'customer.write');
@@ -124,6 +151,29 @@ export default async function CustomersPage() {
                           </p>
                         )}
                       </div>
+
+                      {canStatement && accounts.has(customer.id) && (
+                        <div className="mt-3 border-t border-line pt-3">
+                          <StatementPanel
+                            customerId={customer.id}
+                            balanceCents={
+                              accounts.get(customer.id)!.view.totals.closingDueCents
+                            }
+                            heldCents={accounts.get(customer.id)!.view.totals.closingHeldCents}
+                            openItemCount={accounts.get(customer.id)!.view.items.length}
+                            canBuild={canStatement}
+                            statements={accounts.get(customer.id)!.history.map((row) => ({
+                              id: row.id,
+                              issuedAt: row.issuedAt.toISOString(),
+                              windowDays: row.windowDays,
+                              balanceCents: row.balanceCents,
+                              heldCents: row.heldCents,
+                              openItemCount: row.openItemCount,
+                              documentId: row.documentId,
+                            }))}
+                          />
+                        </div>
+                      )}
 
                       <div className="mt-3 border-t border-line pt-3">
                         <CreditLedger

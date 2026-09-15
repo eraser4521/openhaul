@@ -158,6 +158,7 @@ the procedure linking the signature to the person; every field here exists to an
 | `payments` | Partial payments against an invoice |
 | `refunds` | Money going back out. A separate table, not a negative payment — every figure that asks what an invoice collected sums the payments |
 | `customer_credits` | Overpayments kept on account and later spent. The balance is the sum of these rows and is stored nowhere, because a running total on the customer record drifts the first time a movement is corrected. Every movement names an invoice |
+| `statements` | A statement of account that was produced: the period, what it said was owed, and the frozen PDF. A snapshot on purpose — the covering email has to describe the attachment, not the account as it now stands |
 | `expenses` | Fuel, tolls, car-pulling, with a receipt photo. `reviewedAt` separates "nobody has decided" from "decided no", which one boolean cannot |
 | `settlements` | Driver pay: revenue minus broker fees, times the pay rate |
 | `accessorial_rates` | The carrier's own named charges, with a rate and the unit it is counted in |

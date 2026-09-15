@@ -109,6 +109,7 @@ template does not reproduce the record that was actually agreed.
 | **Sending** | Over your own SMTP, with the attachment hash-checked first and every attempt recorded — and no claim that anything was delivered |
 | **Credits** | A reduction is a second document referencing the invoice, never an edit to the one already sent |
 | **Overpayments** | Sent back, or kept on account against the customer's next invoice — a ledger whose every movement names an invoice |
+| **Statements** | A customer's account on one page, refused rather than sent if the movements do not add up to the balance |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -441,8 +442,29 @@ alternative is a negative balance — the customer owing the carrier money that 
 invoice accounts for. Voiding an invoice with credit attached is refused for the same reason:
 voiding does not undo money, it hides where the money went.
 
-What the app does not do is tell the customer. The balance is the carrier's record of a decision
-the customer asked for; there is no statement of account to send them yet.
+What tells the customer is the statement of account. Opening balance, every movement since, closing
+balance, and the arithmetic has to close — that is the entire value of the document, because a
+statement a customer cannot reconcile turns a collections call into an argument about the statement.
+So the closing figure is computed twice, once by adding up the movements and once from the invoices
+themselves, and a statement whose two figures disagree is refused rather than produced. It is better
+to report a bug than to send a page that does not add up.
+
+Two ledgers on one document, because a customer can owe money and be owed money at the same time.
+What they owe is their open invoices; what the carrier holds is the credit balance, in its own
+section, with the sentence that has never been said anywhere else: we are holding this, tell us
+which invoice to put it against, or ask for it back. A carried-forward overpayment is the movement
+between the two, and this is the only page where it makes sense.
+
+Two things it refuses to do. It never shows a draft or a voided invoice — a draft has never been
+sent to anybody and a void invoice was never validly owed, and either one appearing is the carrier
+claiming money it has not asked for. And the open-item list is never filtered by the statement
+period: an eight-month-old debt stays on a ninety-day statement, because the one thing a statement
+must not say by accident is that nothing older is outstanding.
+
+The document is frozen like every other, and the row that records it keeps what it said. That
+matters for the covering email, which describes the attachment rather than the account — recompute
+the balance at send time and the reader has two different numbers in front of them for the same
+thing.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the
@@ -532,9 +554,9 @@ and a postal code, and a board export usually carries a city and a state — so 
 the stop keeps what was known as a note, and the preview says which of the five are missing. An
 invented street would end up on a bill of lading.
 
-**Not built yet.** Nothing on the original list, and nothing that was on it after. The next useful
-thing is a statement of account — the document that tells a customer what they are holding with
-you. See [CONTRIBUTING.md](CONTRIBUTING.md).
+**Not built yet.** Nothing on the original list, and nothing that was on it after. What would help
+most now is other people's judgment on the domain rather than more features — see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 

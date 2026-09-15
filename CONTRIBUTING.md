@@ -28,11 +28,10 @@ npm run build
 
 ## Where help is most useful
 
-**A statement of account.** A customer's credit balance is now recorded and spendable, but nothing
-tells the customer about it. The credit note asks them to choose between a refund and carrying it
-forward; once the carrier records that choice there is no document confirming what is being held,
-or what it was later spent on. That is a document kind, a template and a send path, next to the
-ones that already exist.
+**Sending statements on a schedule.** A statement is produced when somebody asks for one. Most
+carriers want them going out to every customer with a balance on the first of the month, which
+means a job runner this project does not have, and a decision about what happens when one of the
+fifty fails to send. Worth doing properly or not at all.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

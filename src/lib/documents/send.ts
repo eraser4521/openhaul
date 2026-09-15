@@ -12,6 +12,7 @@ import {
   invoices as invoicesTable,
   loads as loadsTable,
   refunds as refundsTable,
+  statements as statementsTable,
   settlements as settlementsTable,
   type DocumentKind,
 } from '../db/schema';
@@ -21,6 +22,7 @@ import { getOrganization } from '../organization/profile';
 import { compose, attachmentName, type ComposeContext } from '../email/compose';
 import { send, type Attachment } from '../email/transport';
 import { balanceCents, sumRefunds } from '../invoices/compute';
+import { describeWindow } from '../invoices/statement';
 
 /**
  * Sending a stored document.
@@ -281,6 +283,30 @@ export async function draftFor(scoped: ScopedDb, documentId: string): Promise<Se
           recipientLabel = driver.displayName;
         }
         // Drivers have no email column of their own; the address is typed.
+      }
+      break;
+    }
+
+    case 'statement': {
+      /*
+       * The only document addressed to a customer rather than about a load
+       * that happens to have one. The figures come from the statement row
+       * rather than being recomputed, because the email has to describe the
+       * attachment — which is frozen — and not the account as it stands now.
+       * Recomputing would put two different balances in front of the same
+       * reader.
+       */
+      const statement = await scoped.selectOne(
+        'statements',
+        eq(statementsTable.documentId, document.id),
+      );
+
+      if (statement) {
+        context.balanceCents = statement.balanceCents;
+        context.heldCents = statement.heldCents;
+        context.openItemCount = statement.openItemCount;
+        context.periodLabel = describeWindow(statement.windowDays);
+        await customerContact(statement.customerId);
       }
       break;
     }
