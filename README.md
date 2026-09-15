@@ -113,6 +113,7 @@ template does not reproduce the record that was actually agreed.
 | **On a schedule** | Statements posted out monthly or weekly by a cron line, where an occurrence runs once however often it is poked |
 | **Chasing** | An escalating ladder that refuses to chase a disputed invoice, a customer who is paying, or one whose money you are holding |
 | **Promises** | "The cheque goes out Friday" recorded with a date and an amount, which stops the chasing and resolves itself when the money lands |
+| **A worklist** | Every promise arranged by what to do about it, with each customer's record beside it as counts rather than a score |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -543,6 +544,20 @@ withdrawn, which is not the same thing as silence. Nothing about how it turned o
 is worked out from the date, the amount and the payments every time, because a stored state goes
 stale the moment a payment is corrected and a stale one is exactly how the wrong accusation gets
 made.
+
+The invoice screen answers what a customer said about one invoice. A worklist answers the other
+direction, which is the one somebody with a telephone works from: what fell due and did not arrive,
+what is landing today, what is still to come. It is arranged by what to do rather than by date or
+by customer, and the pile that earns its place is the one where the right action is to do nothing —
+a promise whose day has come but whose grace has not is named separately, because a list that
+lumped it in with the broken ones would have somebody ringing a customer whose cheque is on the way.
+
+Beside each row is how that customer's promises have gone: kept three of four, or none of two, and
+a run of kept ones when there is one. Counts rather than a score, deliberately. A percentage is the
+same fact dressed as a measurement and a star rating on a base of two promises is noise that would
+still change how somebody is spoken to. Withdrawn promises are left out of the count entirely,
+because ringing to say the payment cannot be made is the honest thing to do and scoring somebody
+down for candour teaches them not to ring.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

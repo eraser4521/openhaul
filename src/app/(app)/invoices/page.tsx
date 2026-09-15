@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Receipt } from 'lucide-react';
+import { CalendarCheck, Receipt } from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { EmptyState, PageBody, PageHeader } from '@/components/app/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,9 @@ import {
   totalOutstanding,
 } from '@/lib/invoices/compute';
 import { INVOICE_STATUS_TONE, invoiceStatusLabel } from '@/lib/invoices/display';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils/cn';
+import { worklist } from '@/lib/invoices/promise-record';
 
 export const metadata = { title: 'Invoices' };
 
@@ -49,6 +52,16 @@ export default async function InvoicesPage() {
 
   const sorted = positions.slice().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
+  /*
+   * Promises live on their own screen because working them is a different
+   * job from reading an aging report. The count comes here so somebody does
+   * not have to go and look to find out whether there is anything to do.
+   */
+  const promises = await worklist(db, now);
+  const missed = promises.totals.not_kept.count;
+  const promised = promises.totals.not_kept.count + promises.totals.in_the_post.count +
+    promises.totals.expected.count;
+
   return (
     <>
       <PageHeader
@@ -57,6 +70,19 @@ export default async function InvoicesPage() {
           invoices.length > 0
             ? `${money(outstanding)} outstanding across ${invoices.length} invoice${invoices.length === 1 ? '' : 's'}`
             : 'Raised from a delivered load, with the signed paperwork attached.'
+        }
+        actions={
+          promised > 0 ? (
+            <Link
+              href="/invoices/promises"
+              className={cn(buttonVariants({ variant: missed > 0 ? 'primary' : 'secondary' }))}
+            >
+              <CalendarCheck aria-hidden />
+              {missed > 0
+                ? `${missed} promise${missed === 1 ? '' : 's'} not kept`
+                : `${promised} promise${promised === 1 ? '' : 's'}`}
+            </Link>
+          ) : undefined
         }
       />
       <PageBody className="space-y-6">

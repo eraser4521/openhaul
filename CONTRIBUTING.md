@@ -41,11 +41,11 @@ on a patched version itself.
 
 ## Where help is most useful
 
-**A promises worklist.** Promises are recorded and watched, but the only place to see one is the
-invoice it belongs to. A bookkeeper wants the other view: what was promised for this week, what
-fell due yesterday and did not arrive, whose word has been good three times running. That is a
-screen rather than a model — the records already exist — but it is the screen that turns a ladder
-into a collections process somebody actually works.
+**Somewhere to see the money as a whole.** Receivables, promises, credit held for customers and
+what chasing is doing are each answered well on their own screen and nowhere together. The
+dashboard is about loads. What a carrier wants on a Monday morning is one page: owed, promised,
+held, overdue, and which of those moved last week. Assembling it is easy; deciding what belongs on
+it without turning it into a wall of numbers nobody reads is the work.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

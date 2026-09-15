@@ -18,7 +18,18 @@ import {
   supersederOf,
   type PromiseOutcome,
   type PromiseRecord,
+  type PromiseState,
 } from './promise';
+import {
+  WORK_BUCKETS,
+  bucketOf,
+  compareWithin,
+  tally,
+  totalsFor,
+  type BucketTotals,
+  type PromiseTally,
+  type WorkBucket,
+} from './promise-worklist';
 
 /**
  * Recording what a customer said, and working out whether it happened.
@@ -185,4 +196,161 @@ export async function cancelPromise(
   });
 
   return { ok: true };
+}
+
+/* -------------------------------------------------------------------------
+ * The worklist
+ * ---------------------------------------------------------------------- */
+
+export interface WorklistRow {
+  promise: PromiseRecord;
+  outcome: PromiseOutcome;
+  bucket: WorkBucket;
+  invoiceId: string;
+  invoiceNumber: string;
+  /** What the invoice still owes today, which may be less than was promised. */
+  invoiceBalanceCents: number;
+  customerId: string | null;
+  customerName: string;
+  /**
+   * How this customer's promises have gone, this one included.
+   *
+   * Counting the row itself is deliberate. Excluding it is arguably purer —
+   * a promise is not context for itself — but it means one customer shows a
+   * different record on every row of the same page, which reads as a bug and
+   * is the opposite of what somebody about to telephone them needs.
+   */
+  record: PromiseTally;
+}
+
+export interface Worklist {
+  rows: WorklistRow[];
+  byBucket: Record<WorkBucket, WorklistRow[]>;
+  totals: Record<WorkBucket, BucketTotals>;
+}
+
+/**
+ * Every promise worth looking at, across every invoice.
+ *
+ * Assembled in one pass rather than per invoice, because the screen this
+ * feeds is read down the page in one go and a query per promise would be a
+ * query per row. The outcomes come from the same pure function the invoice
+ * screen and the dunning sweep use, so no two of the three can disagree about
+ * whether somebody kept their word.
+ */
+export async function worklist(scoped: ScopedDb, now = new Date()): Promise<Worklist> {
+  const [promiseRows, invoices, customers, payments, refunds, rule] = await Promise.all([
+    scoped.select('promisesToPay'),
+    scoped.select('invoices'),
+    scoped.select('customers'),
+    scoped.select('payments'),
+    scoped.select('refunds'),
+    ruleFor(scoped),
+  ]);
+
+  const invoiceById = new Map(invoices.map((invoice) => [invoice.id, invoice]));
+  const customerById = new Map(customers.map((customer) => [customer.id, customer]));
+
+  const paymentsByInvoice = new Map<string, typeof payments>();
+  for (const payment of payments) {
+    const list = paymentsByInvoice.get(payment.invoiceId) ?? [];
+    list.push(payment);
+    paymentsByInvoice.set(payment.invoiceId, list);
+  }
+
+  const refundedBy = new Map<string, number>();
+  for (const refund of refunds) {
+    refundedBy.set(refund.invoiceId, (refundedBy.get(refund.invoiceId) ?? 0) + refund.amountCents);
+  }
+
+  const byInvoice = new Map<string, PromiseRecord[]>();
+  for (const promise of promiseRows) {
+    const list = byInvoice.get(promise.invoiceId) ?? [];
+    list.push(promise);
+    byInvoice.set(promise.invoiceId, list);
+  }
+
+  /*
+   * Every promise gets an outcome first, including the ones that will not
+   * reach the list. A customer's record is counted from all of them — leaving
+   * out the superseded and withdrawn ones is the point, and that can only be
+   * done once they have been worked out.
+   */
+  const resolved = promiseRows.map((promise) => ({
+    promise,
+    outcome: outcomeOf(promise, paymentsByInvoice.get(promise.invoiceId) ?? [], {
+      graceDays: rule.promiseGraceDays,
+      supersededBy: supersederOf(promise, byInvoice.get(promise.invoiceId) ?? []),
+      now,
+    }),
+  }));
+
+  const historyByCustomer = new Map<
+    string,
+    Array<{ id: string; state: PromiseState; promisedFor: Date }>
+  >();
+  for (const { promise, outcome } of resolved) {
+    const customerId = invoiceById.get(promise.invoiceId)?.customerId;
+    if (!customerId) continue;
+
+    const list = historyByCustomer.get(customerId) ?? [];
+    list.push({ id: promise.id, state: outcome.state, promisedFor: promise.promisedFor });
+    historyByCustomer.set(customerId, list);
+  }
+
+  const rows: WorklistRow[] = [];
+
+  for (const { promise, outcome } of resolved) {
+    const bucket = bucketOf(promise, outcome, now);
+    if (!bucket) continue;
+
+    const invoice = invoiceById.get(promise.invoiceId);
+    if (!invoice) continue;
+
+    const customerId = invoice.customerId;
+    const history = historyByCustomer.get(customerId ?? '') ?? [];
+
+    rows.push({
+      promise,
+      outcome,
+      bucket,
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.number,
+      invoiceBalanceCents: balanceCents({
+        ...invoice,
+        refundedCents: refundedBy.get(invoice.id) ?? 0,
+      }),
+      customerId,
+      customerName: customerId
+        ? (customerById.get(customerId)?.name ?? 'Unknown customer')
+        : 'No customer',
+      record: tally(history),
+    });
+  }
+
+  const byBucket = {
+    not_kept: [] as WorklistRow[],
+    in_the_post: [] as WorklistRow[],
+    expected: [] as WorklistRow[],
+    kept: [] as WorklistRow[],
+  };
+
+  for (const row of rows) byBucket[row.bucket].push(row);
+
+  for (const bucket of WORK_BUCKETS) {
+    byBucket[bucket].sort((a, b) => compareWithin(bucket, a.promise, b.promise));
+  }
+
+  const totals = {
+    not_kept: totalsFor(byBucket.not_kept.map(toTotal)),
+    in_the_post: totalsFor(byBucket.in_the_post.map(toTotal)),
+    expected: totalsFor(byBucket.expected.map(toTotal)),
+    kept: totalsFor(byBucket.kept.map(toTotal)),
+  };
+
+  return { rows, byBucket, totals };
+}
+
+function toTotal(row: WorklistRow) {
+  return { amountCents: row.promise.amountCents, outcome: row.outcome };
 }
