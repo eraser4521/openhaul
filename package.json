@@ -26,6 +26,8 @@
     "publish": "node scripts/publish-to-github.mjs"
   },
   "dependencies": {
+    "@emnapi/core": "^1.11.3",
+    "@emnapi/runtime": "^1.11.3",
     "@libsql/client": "^0.18.0",
     "@node-rs/argon2": "^2.2.1",
     "@serwist/next": "^9.5.12",

@@ -24,6 +24,13 @@ npm test
 npm run build
 ```
 
+**`@emnapi/core` and `@emnapi/runtime` are in `dependencies` on purpose.** Nothing imports them.
+They are transitive dependencies of sharp's WebAssembly fallback, and npm prunes that subtree out
+of the lock file when the lock file is written on a platform where the fallback does not apply —
+which then makes `npm ci` fail on Linux with "Missing: @emnapi/runtime from lock file". Declaring
+them at the root keeps them in the tree whatever platform `npm install` runs on. Removing them as
+unused breaks CI, not the app.
+
 ---
 
 ## Where help is most useful
