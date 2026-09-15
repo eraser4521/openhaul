@@ -111,6 +111,7 @@ template does not reproduce the record that was actually agreed.
 | **Overpayments** | Sent back, or kept on account against the customer's next invoice — a ledger whose every movement names an invoice |
 | **Statements** | A customer's account on one page, refused rather than sent if the movements do not add up to the balance |
 | **On a schedule** | Statements posted out monthly or weekly by a cron line, where an occurrence runs once however often it is poked |
+| **Chasing** | An escalating ladder that refuses to chase a disputed invoice, a customer who is paying, or one whose money you are holding |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -495,6 +496,30 @@ Nobody is sent a statement saying nothing. A customer who owes nothing and holds
 and left alone, because the fastest way to teach an accounts department to filter a sender is to
 mail them a zero every month. Somebody holding credit does get one at a zero balance: telling them
 the carrier has their money is the reason the balance is recorded at all.
+
+Chasing an unpaid one is a ladder rather than a schedule, and almost all of it is refusals. Sending
+a firmer and firmer letter is trivial; the work is the cases where doing so is wrong, and those are
+the cases that lose a customer rather than collect a debt.
+
+It will not chase somebody whose money the carrier is already holding — a letter demanding $1,875
+from a customer whose $1,875 is sitting in the carrier's account cannot be defended when it is read
+back to them. It will not escalate an invoice with an open cargo claim on its load, or one under
+legal hold, because those are conversations rather than debts. Money arriving restarts the clock
+without resetting the ladder, so somebody paying in instalments is not escalated for it and
+somebody paying a pound a month still reaches the end. And a dispatcher who has just had the
+conversation can leave one invoice alone until a date, with a reason that stays on the record.
+
+At most one rung goes per invoice per sweep. A sweep that has not run for a month finds an invoice
+fifty days overdue with every threshold met and sends the first reminder, because a customer whose
+first contact about a debt is a final notice has been ambushed however late they are.
+
+The wording belongs to the carrier and the figures belong to the document. There is no template
+language, so a reminder cannot go out saying "Invoice {{number}}" — the prose is written by a
+person and the invoice number, the dates, the outstanding figure and how to pay are printed in
+their own panel where an edit to the prose cannot break them. The defaults threaten nothing: no
+collections, no lawyers, no credit rating. A default that promised any of those would put words in
+a carrier's mouth about a step they may have no intention of taking, and a threat not followed
+through is ignored the next time.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

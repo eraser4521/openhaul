@@ -6,6 +6,8 @@ import { authErrorToResult, requireCapability } from '@/lib/auth/guard';
 import { buildStatement } from '@/lib/invoices/statement-document';
 import { STATEMENT_WINDOWS } from '@/lib/invoices/statement';
 import { setStatementsEnabled } from '@/lib/invoices/statement-run';
+import { eq } from 'drizzle-orm';
+import { customers as customersTable } from '@/lib/db/schema';
 
 /**
  * Producing a statement of account.
@@ -85,6 +87,33 @@ export async function setStatementsEnabledAction(
   }
 
   await setStatementsEnabled(context.db, customerId, enabled);
+
+  revalidatePath('/customers');
+  revalidatePath('/settings');
+  return { ok: true };
+}
+
+/**
+ * Turning automatic chasing off for one customer.
+ *
+ * Separate from statements deliberately. "Do not send me a monthly summary"
+ * and "never chase me for money" are different requests, and one switch for
+ * both means honouring one of them by accident.
+ */
+export async function setDunningEnabledAction(
+  customerId: string,
+  enabled: boolean,
+): Promise<StatementActionResult> {
+  let context;
+  try {
+    context = await requireCapability('invoice.read');
+  } catch (error) {
+    return authErrorToResult(error);
+  }
+
+  await context.db.update('customers', eq(customersTable.id, customerId), {
+    dunningEnabled: enabled,
+  });
 
   revalidatePath('/customers');
   revalidatePath('/settings');

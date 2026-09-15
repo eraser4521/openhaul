@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AlertCircle, Check, FileText, Receipt } from 'lucide-react';
 import {
   buildStatementAction,
+  setDunningEnabledAction,
   setStatementsEnabledAction,
 } from '@/app/(app)/customers/statement-actions';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ export function StatementPanel({
   statements,
   scheduled,
   scheduleOn,
+  chased,
   canBuild,
 }: {
   customerId: string;
@@ -53,6 +55,8 @@ export function StatementPanel({
   scheduled: boolean;
   /** False when the organisation sends none at all, so the toggle explains itself. */
   scheduleOn: boolean;
+  /** Whether overdue invoices for this customer are chased. */
+  chased: boolean;
   canBuild: boolean;
 }) {
   const [busy, setBusy] = useState(false);
@@ -64,6 +68,17 @@ export function StatementPanel({
     setError(null);
     try {
       const result = await setStatementsEnabledAction(customerId, enabled);
+      if (!result.ok) setError(result.error ?? 'That could not be changed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setChased = async (enabled: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await setDunningEnabledAction(customerId, enabled);
       if (!result.ok) setError(result.error ?? 'That could not be changed.');
     } finally {
       setBusy(false);
@@ -152,6 +167,19 @@ export function StatementPanel({
             Include in scheduled statements.
             {!scheduleOn && ' Nothing is sent on a schedule yet — set one in Settings.'}
           </span>
+        </label>
+      )}
+
+      {canBuild && (
+        <label className="mt-1.5 flex items-start gap-2 text-xs leading-relaxed text-ink-secondary">
+          <input
+            type="checkbox"
+            checked={chased}
+            disabled={busy}
+            onChange={(event) => void setChased(event.target.checked)}
+            className="mt-0.5 size-3.5 rounded border-line accent-[var(--brand)]"
+          />
+          <span>Chase their overdue invoices.</span>
         </label>
       )}
 

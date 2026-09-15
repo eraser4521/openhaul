@@ -67,6 +67,7 @@ the encryption worth having.
 | `SMTP_BOUNCE_ADDRESS` | recommended | A plus-addressable mailbox, so bounces can be traced to a send |
 | `BOUNCE_CHECK_TOKEN` | for unattended checks | Enables `POST /api/bounces/check`; the endpoint is off without it |
 | `STATEMENT_RUN_TOKEN` | for scheduled statements | Enables `POST /api/statements/run`; the endpoint is off without it |
+| `DUNNING_RUN_TOKEN` | for chasing overdue invoices | Enables `POST /api/dunning/run`; the endpoint is off without it |
 | `FMCSA_WEB_KEY` | for carrier lookups | Free key from mobile.fmcsa.dot.gov; without it the lookup screen says so and stays off |
 | `NEXT_PUBLIC_APP_URL` | yes | Public origin, used in metadata |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | multi-instance only | See below |
@@ -128,6 +129,46 @@ the next occurrence.
 The endpoint returns 200 even when individual sends failed, because the
 request was handled and a retry would only find the occurrence taken. Watch
 the run summary in Settings, not the HTTP status.
+
+---
+
+## Chasing overdue invoices
+
+Off until you turn it on, and off by default for a reason: a ladder that
+starts sending the moment it is deployed chases debts you had already settled
+by telephone. Set the rungs on the Settings screen, then set
+`DUNNING_RUN_TOKEN` and add a cron line:
+
+```
+0 9 * * * curl -fsS -X POST -H "authorization: Bearer $DUNNING_RUN_TOKEN"   https://your-host/api/dunning/run
+```
+
+Its own token rather than sharing the statement one. Sending a summary and
+chasing a debt are different acts with different consequences, and a carrier
+who wants monthly statements but no automatic chasing should be able to have
+exactly that without reading the source to find out whether one switch turns
+on both.
+
+Daily is the right cadence whatever the ladder says. **At most one rung goes
+per invoice per sweep**, so a sweep that has not run for a month finds an
+invoice fifty days overdue and sends the first reminder, not all three — a
+customer whose first contact about a debt is a final notice has been ambushed,
+however late they are.
+
+**What it refuses to chase.** An invoice covered by credit the customer is
+holding with you. One with an open cargo claim on its load, or a load under
+legal hold. One where money has arrived recently. One somebody has paused by
+hand, with a reason, from the invoice screen. A customer who has asked not to
+be chased. Anything below the minimum balance. Every refusal is named on the
+Settings screen against the invoice it applies to, so "that is ninety days
+late, why has nobody chased it" has an answer.
+
+**The wording is yours.** The default rungs threaten nothing — no collections,
+no lawyers, no credit rating — because a default that promised any of those
+would put words in your mouth about a step you may have no intention of
+taking, and a threat you do not follow through on is ignored the next time.
+Write your own if you want to name a consequence, and mean it. The figures,
+the dates and how to pay are printed by the document; you write the sentence.
 
 ---
 

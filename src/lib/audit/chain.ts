@@ -265,6 +265,10 @@ export const AUDIT = {
   statementIssued: 'statement.issued',
   statementScheduleChanged: 'statement.schedule.changed',
   statementRunFinished: 'statement.run.finished',
+  dunningSettingsChanged: 'dunning.settings.changed',
+  dunningNoticeSent: 'dunning.notice.sent',
+  dunningPaused: 'dunning.paused',
+  dunningRunFinished: 'dunning.run.finished',
 
   driverCreated: 'driver.created',
   expenseRecorded: 'expense.recorded',

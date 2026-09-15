@@ -26,6 +26,8 @@ export const DOCUMENT_KINDS = [
    * holding for them, and every movement since the period opened.
    */
   'statement',
+  /** A reminder about an unpaid invoice, at one rung of the ladder. */
+  'dunning_notice',
   'other',
 ] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];

@@ -70,6 +70,8 @@ export function scopeForKind(kind: DocumentKind): TemplateScope {
       return 'credit_note';
     case 'statement':
       return 'statement';
+    case 'dunning_notice':
+      return 'dunning';
     case 'settlement':
       return 'settlement';
     case 'claim_acknowledgement':

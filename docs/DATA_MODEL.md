@@ -162,6 +162,10 @@ the procedure linking the signature to the person; every field here exists to an
 | `statement_schedules` | When statements go out, one row per organisation. A cadence, not a timer: something outside has to poke the app |
 | `statement_runs` | One occurrence of the schedule. `(org_id, due_on)` is unique, and that uniqueness is the entire concurrency design — whoever writes the row owns the run |
 | `statement_run_items` | What happened to one customer in one run. Only customers the run tried to act on get a row; the reason a send failed lives here |
+| `dunning_settings` | How firmly overdue invoices are chased, one row per organisation. Off by default |
+| `dunning_stages` | The rungs of the ladder: when each goes and what it says. The carrier's words; the figures are the document's |
+| `dunning_runs` | One daily sweep. `(org_id, due_on)` is unique, so a sweep happens once however often it is poked |
+| `dunning_notices` | A notice sent, or attempted. The balance and days past due are frozen at the moment it went, because the question afterwards is what the customer was told |
 | `expenses` | Fuel, tolls, car-pulling, with a receipt photo. `reviewedAt` separates "nobody has decided" from "decided no", which one boolean cannot |
 | `settlements` | Driver pay: revenue minus broker fees, times the pay rate |
 | `accessorial_rates` | The carrier's own named charges, with a rate and the unit it is counted in |

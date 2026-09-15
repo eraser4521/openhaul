@@ -28,12 +28,10 @@ npm run build
 
 ## Where help is most useful
 
-**A dunning ladder.** Statements go out on a cadence, but a customer ninety days late gets the same
-document as one who is current. What collections actually needs is a sequence — a reminder, then a
-firmer one, then a final notice before it goes elsewhere — with the wording and the timing set by
-the carrier, and a record of which stage each debt has reached. That is a state machine per invoice
-rather than a schedule per customer, and it is easy to build something that harasses people by
-accident.
+**Promises to pay.** When a customer says "the cheque goes out Friday", the only place to put that
+today is a dunning pause with a reason. What it should be is a record with a date and an amount
+that the ladder watches: kept, and the customer is left alone; broken, and chasing resumes knowing
+it was broken. That changes what the next letter can honestly say, which is the point.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

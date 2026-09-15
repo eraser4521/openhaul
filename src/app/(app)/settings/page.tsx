@@ -27,6 +27,14 @@ import { VerifyChainButton } from './verify-chain';
 import { StatementSchedule } from '@/components/app/statement-schedule';
 import { candidates, itemsFor, recentRuns, scheduleFor } from '@/lib/invoices/statement-run';
 import { nextOccurrenceAfter } from '@/lib/invoices/statement-schedule';
+import { DunningLadder } from '@/components/app/dunning-ladder';
+import {
+  chaseable,
+  failedNotices,
+  ladderFor,
+  recentDunningRuns,
+  ruleFor,
+} from '@/lib/invoices/dunning-run';
 
 /** The editable half of a stored template row. */
 function templateValues(row: {
@@ -128,6 +136,30 @@ export default async function SettingsPage() {
           })),
       };
     }),
+  );
+
+  const dunningRule = await ruleFor(db);
+  const dunningLadder = await ladderFor(db);
+  const [chaseRows, sweepRows] = await Promise.all([
+    canSettings ? chaseable(db, dunningRule, dunningLadder) : Promise.resolve([]),
+    canSettings ? recentDunningRuns(db) : Promise.resolve([]),
+  ]);
+
+  const sweepViews = await Promise.all(
+    sweepRows.map(async (sweep) => ({
+      id: sweep.id,
+      dueOn: sweep.dueOn.toISOString().slice(0, 10),
+      trigger: sweep.trigger,
+      startedAt: sweep.startedAt.toISOString(),
+      sent: sweep.sentCount,
+      failed: sweep.failedCount,
+      held: sweep.heldCount,
+      failures: (await failedNotices(db, sweep.id)).map((notice) => ({
+        id: notice.id,
+        invoiceNumber: notice.invoiceNumber,
+        detail: notice.detail,
+      })),
+    })),
   );
 
   const nextOn = nextOccurrenceAfter(rule, new Date());
@@ -264,6 +296,29 @@ export default async function SettingsPage() {
               decision: row.decision,
             }))}
             runs={runViews}
+          />
+        )}
+
+        {canSettings && (
+          <DunningLadder
+            rule={dunningRule}
+            ladder={dunningLadder}
+            mailReady={mailConfigured()}
+            triggerReady={Boolean(process.env.DUNNING_RUN_TOKEN)}
+            canEdit={canSettings}
+            rows={chaseRows
+              .filter((row) => row.decision.daysPastDue > 0 && row.decision.balanceCents > 0)
+              .map((row) => ({
+                invoiceId: row.invoice.id,
+                invoiceNumber: row.invoice.number,
+                customerName: row.customer?.name ?? 'No customer',
+                balanceCents: row.decision.balanceCents,
+                daysPastDue: row.decision.daysPastDue,
+                chase: row.decision.chase,
+                stageLabel: row.decision.chase ? row.decision.stage.label : undefined,
+                reason: row.decision.chase ? undefined : row.decision.reason,
+              }))}
+            sweeps={sweepViews}
           />
         )}
 

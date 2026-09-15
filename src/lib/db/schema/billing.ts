@@ -103,6 +103,16 @@ export const invoices = sqliteTable(
     factoringNoticeText: text('factoring_notice_text'),
 
     notes: text('notes'),
+    /**
+     * Leave this invoice alone until then.
+     *
+     * The dispatcher knows things the ladder does not — that they rang, that
+     * payment is coming on Friday, that the PO number was wrong and is being
+     * reissued. Without somewhere to put that, the only way to stop a notice
+     * is to turn dunning off for everybody.
+     */
+    dunningPausedUntil: ts('dunning_paused_until'),
+    dunningPauseReason: text('dunning_pause_reason'),
     /** Frozen PDF bytes; regeneration is a fallback, never the record. */
     documentId: text('document_id'),
 
@@ -568,6 +578,193 @@ export const statementRunItems = sqliteTable(
 );
 
 export type StatementRunItem = typeof statementRunItems.$inferSelect;
+
+/**
+ * How firmly, and how often, an unpaid invoice is chased.
+ *
+ * One row per organisation. Off by default and deliberately so: a ladder that
+ * starts sending the moment it is deployed would chase debts the carrier had
+ * already settled by telephone.
+ */
+export const dunningSettings = sqliteTable(
+  'dunning_settings',
+  {
+    id: pk(),
+    orgId: orgId(),
+
+    enabled: bool('enabled').notNull().default(false),
+    /** Below this, chasing costs more than the debt and annoys more than it collects. */
+    minimumBalanceCents: money('minimum_balance_cents').notNull().default(0),
+    /**
+     * The shortest time between two notices about the same invoice.
+     *
+     * Independent of the stage thresholds, because a run that has not happened
+     * for a month would otherwise find three stages all due at once and send
+     * them together. One notice, then silence for this long, whatever the
+     * ladder says.
+     */
+    minimumGapDays: integer('minimum_gap_days').notNull().default(10),
+    /**
+     * Silence after money arrives.
+     *
+     * Somebody paying in instalments is not somebody to escalate. A payment
+     * restarts the clock rather than the ladder — the next stage still comes
+     * next, but not until they have had this long.
+     */
+    pauseAfterPaymentDays: integer('pause_after_payment_days').notNull().default(14),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('dunning_settings_org_id_uq').on(t.orgId, t.id),
+    uniqueIndex('dunning_settings_org_uq').on(t.orgId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'dunning_settings_org_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type DunningSettings = typeof dunningSettings.$inferSelect;
+
+/**
+ * One rung of the ladder.
+ *
+ * The carrier writes the sentence; the document supplies the figures. There
+ * is no template language and no merge fields, because a reminder that goes
+ * out saying "Invoice {{number}}" is worse than one that says nothing at all,
+ * and the facts are printed in their own panel where they cannot be broken by
+ * an edit to the prose.
+ */
+export const dunningStages = sqliteTable(
+  'dunning_stages',
+  {
+    id: pk(),
+    orgId: orgId(),
+
+    /** 1, 2, 3 — the order they go in. A stage never skips the one before it. */
+    sequence: integer('sequence').notNull(),
+    label: text('label').notNull(),
+    /** Days past the due date before this rung becomes available. */
+    daysPastDue: integer('days_past_due').notNull(),
+    /** The carrier's own words. */
+    message: text('message').notNull(),
+    enabled: bool('enabled').notNull().default(true),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('dunning_stages_org_id_uq').on(t.orgId, t.id),
+    uniqueIndex('dunning_stages_org_sequence_uq').on(t.orgId, t.sequence),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'dunning_stages_org_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type DunningStage = typeof dunningStages.$inferSelect;
+
+/**
+ * One sweep of the ladder across every overdue invoice.
+ *
+ * Same shape as a statement run and for the same reason: `(org_id, due_on)`
+ * is unique, so whoever writes the row owns the sweep and a second trigger
+ * finds it taken. Dunning runs daily, so the occurrence is simply the date.
+ */
+export const dunningRuns = sqliteTable(
+  'dunning_runs',
+  {
+    id: pk(),
+    orgId: orgId(),
+
+    dueOn: ts('due_on').notNull(),
+    trigger: text('trigger', { enum: RUN_TRIGGERS }).notNull(),
+
+    startedAt: ts('started_at').notNull(),
+    finishedAt: ts('finished_at'),
+
+    /** Overdue invoices examined, including every one that was held back. */
+    consideredCount: integer('considered_count').notNull().default(0),
+    sentCount: integer('sent_count').notNull().default(0),
+    failedCount: integer('failed_count').notNull().default(0),
+    /** Held back by one of the rules. The reason is on each notice row. */
+    heldCount: integer('held_count').notNull().default(0),
+
+    error: text('error'),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('dunning_runs_org_id_uq').on(t.orgId, t.id),
+    uniqueIndex('dunning_runs_org_due_uq').on(t.orgId, t.dueOn),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'dunning_runs_org_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type DunningRun = typeof dunningRuns.$inferSelect;
+
+export const DUNNING_OUTCOMES = ['sent', 'failed'] as const;
+export type DunningOutcome = (typeof DUNNING_OUTCOMES)[number];
+
+/**
+ * A notice that was sent, or tried.
+ *
+ * A failed attempt is kept rather than discarded, so the next sweep can try
+ * the same rung again and a person can see that it was attempted. What
+ * decides whether a rung has been climbed is a `sent` row, not a row.
+ *
+ * `balanceCents` and `daysPastDue` are frozen at the moment the notice went,
+ * because the question afterwards is what the customer was told, not what
+ * they owe today.
+ */
+export const dunningNotices = sqliteTable(
+  'dunning_notices',
+  {
+    id: pk(),
+    orgId: orgId(),
+
+    invoiceId: text('invoice_id').notNull(),
+    runId: text('run_id'),
+    stageSequence: integer('stage_sequence').notNull(),
+    stageLabel: text('stage_label').notNull(),
+
+    outcome: text('outcome', { enum: DUNNING_OUTCOMES }).notNull(),
+    /** Why the send failed. Null when it went. */
+    detail: text('detail'),
+
+    sentAt: ts('sent_at').notNull(),
+    documentId: text('document_id'),
+
+    balanceCents: money('balance_cents').notNull().default(0),
+    daysPastDue: integer('days_past_due').notNull().default(0),
+
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('dunning_notices_org_id_uq').on(t.orgId, t.id),
+    index('dunning_notices_invoice_idx').on(t.orgId, t.invoiceId),
+    index('dunning_notices_run_idx').on(t.orgId, t.runId),
+    foreignKey({
+      columns: [t.orgId],
+      foreignColumns: [organizations.id],
+      name: 'dunning_notices_org_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.orgId, t.invoiceId],
+      foreignColumns: [invoices.orgId, invoices.id],
+      name: 'dunning_notices_invoice_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
+export type DunningNotice = typeof dunningNotices.$inferSelect;
 
 /** Driver-incurred costs against a load, with a receipt photo. */
 export const expenses = sqliteTable(

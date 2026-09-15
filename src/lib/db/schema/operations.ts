@@ -172,6 +172,14 @@ export const customers = sqliteTable(
      * everybody else's.
      */
     statementsEnabled: bool('statements_enabled').notNull().default(true),
+    /**
+     * Whether overdue invoices for this customer are chased automatically.
+     *
+     * Separate from statements on purpose. "Do not send me a monthly summary"
+     * and "never chase me for money" are different requests, and conflating
+     * them means honouring one by accident.
+     */
+    dunningEnabled: bool('dunning_enabled').notNull().default(true),
     /** Free-text notes; never store payment credentials here. */
     notes: text('notes'),
     archivedAt: ts('archived_at'),

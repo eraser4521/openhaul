@@ -40,6 +40,8 @@ import {
 import { InvoiceAccessorials } from '@/components/app/invoice-accessorials';
 import { checkCreditable, creditsFor } from '@/lib/invoices/credits';
 import { voidBlockedReason } from '@/lib/invoices/lifecycle';
+import { InvoiceDunning } from '@/components/app/invoice-dunning';
+import { chaseable, ladderFor, noticesFor, ruleFor } from '@/lib/invoices/dunning-run';
 import { accessorialsFor, listRates } from '@/lib/branding/accessorials';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -113,6 +115,19 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const position = { ...invoice, refundedCents: refunded };
   const status = effectiveStatus(position, now);
   const balance = balanceCents(position);
+
+  /*
+   * Where this invoice sits on the ladder, decided by the same function the
+   * sweep uses — so the card cannot say a notice is due while the sweep
+   * leaves it alone, or the other way round.
+   */
+  const dunningRule = await ruleFor(db);
+  const dunningLadder = await ladderFor(db);
+  const [dunningNotices, chaseRows] = await Promise.all([
+    noticesFor(db, id),
+    chaseable(db, dunningRule, dunningLadder, now),
+  ]);
+  const chaseRow = chaseRows.find((row) => row.invoice.id === id);
 
   const charges = {
     lineHaulCents: invoice.lineHaulCents,
@@ -379,6 +394,37 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </Card>
           </section>
         )}
+
+        <InvoiceDunning
+          invoiceId={invoice.id}
+          enabled={dunningRule.enabled}
+          canWrite={canPay}
+          today={now.toISOString().slice(0, 10)}
+          daysPastDue={chaseRow?.decision.daysPastDue ?? 0}
+          chase={chaseRow?.decision.chase ?? false}
+          reason={
+            chaseRow && !chaseRow.decision.chase ? chaseRow.decision.reason : null
+          }
+          nextStageLabel={
+            chaseRow?.decision.chase ? chaseRow.decision.stage.label : null
+          }
+          nextStageSequence={
+            chaseRow?.decision.chase ? chaseRow.decision.stage.sequence : null
+          }
+          pausedUntil={invoice.dunningPausedUntil?.toISOString().slice(0, 10) ?? null}
+          pauseReason={invoice.dunningPauseReason}
+          notices={dunningNotices.map((notice) => ({
+            id: notice.id,
+            stageLabel: notice.stageLabel,
+            stageSequence: notice.stageSequence,
+            outcome: notice.outcome,
+            detail: notice.detail,
+            sentAt: notice.sentAt.toISOString(),
+            documentId: notice.documentId,
+            balanceCents: notice.balanceCents,
+            daysPastDue: notice.daysPastDue,
+          }))}
+        />
 
         <CustomerCredit
           invoiceId={invoice.id}

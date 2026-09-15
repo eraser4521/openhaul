@@ -37,6 +37,10 @@ export interface ComposeContext {
   /** Statements of account. */
   heldCents?: number | null;
   openItemCount?: number | null;
+
+  /** Overdue notices. */
+  daysPastDue?: number | null;
+  stageLabel?: string | null;
 }
 
 export interface ComposedMessage {
@@ -216,6 +220,34 @@ export function compose(kind: DocumentKind, context: ComposeContext): ComposedMe
             : '') +
           'If anything on it does not match your records, tell us which line and we will go ' +
           'through it.' +
+          signOff(carrierName),
+      };
+    }
+
+    case 'dunning_notice': {
+      const days = context.daysPastDue ?? 0;
+
+      /*
+       * Factual, and quiet. A subject line shouting OVERDUE reaches whoever
+       * happens to be covering the accounts inbox that week, and the reader
+       * it embarrasses is rarely the person who decided not to pay.
+       */
+      return {
+        subject:
+          `Invoice ${reference}` +
+          (context.balanceCents ? ` — ${money(context.balanceCents)} outstanding` : '') +
+          (days > 0 ? ` — ${days} days past due` : ''),
+        body:
+          `${greeting(context.recipientName)}\n\n` +
+          `${context.stageLabel ?? 'A reminder'} about invoice ${reference}${load} is ` +
+          'attached.\n\n' +
+          (context.balanceCents
+            ? `${money(context.balanceCents)} is outstanding on it` +
+              (days > 0 ? `, ${days} days after it was due` : '') +
+              '.\n\n'
+            : '') +
+          'If this has crossed with your payment, please accept our thanks and ignore it. If ' +
+          'any part of the invoice is wrong, tell us which line and we will look at it.' +
           signOff(carrierName),
       };
     }

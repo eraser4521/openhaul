@@ -49,6 +49,7 @@ const SCOPES: Array<{ value: TemplateScope; label: string }> = [
   { value: 'invoice', label: 'Invoice' },
   { value: 'credit_note', label: 'Credit note' },
   { value: 'statement', label: 'Statement' },
+  { value: 'dunning', label: 'Overdue notices' },
   { value: 'settlement', label: 'Settlement' },
   { value: 'claim', label: 'Claim letters' },
 ];
@@ -56,7 +57,7 @@ const SCOPES: Array<{ value: TemplateScope; label: string }> = [
 /** Where the carrier's extra terms are actually printed. */
 const ADDENDUM_SCOPES: TemplateScope[] = ['all', 'bol', 'pod', 'invoice', 'settlement'];
 /** Where a remittance block replaces the office address. */
-const REMIT_SCOPES: TemplateScope[] = ['all', 'invoice', 'credit_note', 'statement'];
+const REMIT_SCOPES: TemplateScope[] = ['all', 'invoice', 'credit_note', 'statement', 'dunning'];
 
 const EMPTY: TemplateValues = {
   letterheadName: null,

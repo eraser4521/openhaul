@@ -7,6 +7,8 @@ import { renderCreditNote } from '../documents/credit-note';
 import { renderSettlement } from '../documents/settlement';
 import { renderClaimLetter } from '../documents/claim-letter';
 import { renderStatement } from '../documents/statement';
+import { renderDunningNotice } from '../documents/dunning-notice';
+import { DEFAULT_LADDER } from '../invoices/dunning';
 import {
   agedTotals,
   openItems,
@@ -352,6 +354,39 @@ async function specimenStatement(org: Organization, brand: DocumentBrand): Promi
   });
 }
 
+async function specimenDunning(org: Organization, brand: DocumentBrand): Promise<Uint8Array> {
+  const stage = DEFAULT_LADDER[1]!;
+
+  return renderDunningNotice({
+    stageLabel: stage.label,
+    stageSequence: stage.sequence,
+    stageCount: DEFAULT_LADDER.length,
+    issuedAt: ISSUED,
+    brand,
+    carrier: carrierParty(org),
+    billTo: {
+      name: 'Specimen Logistics Brokerage',
+      contactName: 'Accounts Payable',
+      addressLine1: '1 Specimen Plaza',
+      city: 'Dallas',
+      state: 'TX',
+      postalCode: '75201',
+      email: 'ap@specimen.example',
+    },
+    message: stage.message,
+    invoiceNumber: 'SPECIMEN-1',
+    invoiceIssuedAt: new Date('2026-01-14T00:00:00Z'),
+    dueAt: new Date('2026-02-13T00:00:00Z'),
+    daysPastDue: 32,
+    loadNumber: 'SPECIMEN',
+    totalCents: 294_000,
+    paidCents: 100_000,
+    creditedCents: 0,
+    balanceCents: 194_000,
+    currency: 'USD',
+  });
+}
+
 export async function renderSpecimen(
   scope: TemplateScope,
   org: Organization,
@@ -366,6 +401,8 @@ export async function renderSpecimen(
       return specimenCreditNote(org, brand);
     case 'statement':
       return specimenStatement(org, brand);
+    case 'dunning':
+      return specimenDunning(org, brand);
     case 'settlement':
       return specimenSettlement(org, brand);
     case 'claim':

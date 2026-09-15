@@ -34,6 +34,7 @@ export const TEMPLATE_SCOPES = [
   'invoice',
   'credit_note',
   'statement',
+  'dunning',
   'settlement',
   'claim',
 ] as const;

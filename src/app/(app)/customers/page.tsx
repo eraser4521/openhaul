@@ -166,6 +166,7 @@ export default async function CustomersPage() {
                             canBuild={canStatement}
                             scheduled={customer.statementsEnabled}
                             scheduleOn={schedule.cadence !== 'off'}
+                            chased={customer.dunningEnabled}
                             statements={accounts.get(customer.id)!.history.map((row) => ({
                               id: row.id,
                               issuedAt: row.issuedAt.toISOString(),
