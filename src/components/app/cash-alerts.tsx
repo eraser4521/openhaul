@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { money } from '@/lib/utils/format';
+import { money, relativeTime } from '@/lib/utils/format';
 import { REASON_LABEL, SILENCE_LABEL, type AlertSilence } from '@/lib/cash/alert';
 import type { AlertKind, AlertReason } from '@/lib/db/schema';
 
@@ -40,27 +40,6 @@ export interface SentAlert {
   sentAt: string;
   recipients: string;
   shortfallCents: number | null;
-}
-
-/**
- * When a message went out, to the minute, in UTC.
- *
- * Not a relative time. `relativeTime` counts in seconds for anything under a
- * minute, so a row rendered on the server as "4s ago" and hydrated a moment
- * later as "6s ago" is a hydration mismatch — and these rows are read most
- * often in the seconds right after somebody presses the button. A fixed stamp
- * is also the more useful thing here: it is what a reader matches against the
- * message sitting in their inbox.
- */
-function sentText(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'UTC',
-  });
 }
 
 export function CashAlerts({
@@ -283,7 +262,7 @@ export function CashAlerts({
                 </span>
                 <span className="text-xs text-ink-secondary tabular-nums">
                   {row.shortfallCents !== null && `${money(row.shortfallCents)} · `}
-                  {sentText(row.sentAt)} UTC
+                  {relativeTime(row.sentAt)}
                 </span>
                 {row.detail && <span className="w-full text-xs text-warn">{row.detail}</span>}
               </li>

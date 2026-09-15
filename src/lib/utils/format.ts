@@ -36,27 +36,65 @@ export function miles(value: number | null | undefined): string {
   return `${NUM.format(value)} mi`;
 }
 
-/** Compact relative time, e.g. "3h ago", "in 2d". */
+/**
+ * The finest unit this will report. Below it, the clock is a liability and the
+ * exact figure is not information anybody wants.
+ */
+const FINEST_UNIT_SECONDS = 60;
+
+const RELATIVE_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+  ['year', 31_536_000],
+  ['month', 2_592_000],
+  ['week', 604_800],
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', FINEST_UNIT_SECONDS],
+];
+
+/**
+ * Compact relative time, e.g. "3h ago", "in 2d", "just now".
+ *
+ * Nothing finer than a minute, for two reasons that happen to agree.
+ *
+ * The first is that no screen here wants it. Every caller is answering "how
+ * long ago did this happen" at human scale — a load created, a notice sent, a
+ * sweep run — and four seconds and forty seconds are the same answer to that
+ * question.
+ *
+ * The second is that a second-granularity string cannot survive server
+ * rendering. The server renders the HTML and the client hydrates a moment
+ * later, by which time "5s ago" has become "7s ago", and React reports the
+ * difference as a hydration failure. The sessions list on Settings was the
+ * reliable case: the current session's last-seen time is rewritten on every
+ * request, so it was always a few seconds old and the two renders essentially
+ * never agreed.
+ *
+ * This is a floor rather than a guarantee, and worth being precise about. Any
+ * text derived from the current clock can still differ across that boundary if
+ * the two renders fall either side of a unit edge — fifty-nine minutes on the
+ * server, an hour on the client. Minutes make that rare where seconds made it
+ * certain. Making it impossible would mean not deriving the string from the
+ * clock during render at all, which is a change at every call site rather than
+ * a change here.
+ */
 export function relativeTime(date: Date | string | number): string {
   const then = new Date(date).getTime();
   const deltaSeconds = Math.round((then - Date.now()) / 1000);
 
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ['year', 31_536_000],
-    ['month', 2_592_000],
-    ['week', 604_800],
-    ['day', 86_400],
-    ['hour', 3_600],
-    ['minute', 60],
-  ];
+  if (Math.abs(deltaSeconds) < FINEST_UNIT_SECONDS) {
+    return deltaSeconds > 0 ? 'in a moment' : 'just now';
+  }
 
   const rtf = new Intl.RelativeTimeFormat('en-US', { numeric: 'auto', style: 'narrow' });
-  for (const [unit, seconds] of units) {
+  for (const [unit, seconds] of RELATIVE_UNITS) {
     if (Math.abs(deltaSeconds) >= seconds) {
       return rtf.format(Math.round(deltaSeconds / seconds), unit);
     }
   }
-  return rtf.format(deltaSeconds, 'second');
+
+  /* Unreachable: the sub-minute case returned above, and `minute` is the last
+   * unit in the list. Present so the function has no implicit undefined. */
+  return 'just now';
 }
 
 /** Formats a US phone number, leaving anything unexpected untouched. */
