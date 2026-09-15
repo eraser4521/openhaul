@@ -2,35 +2,61 @@ import 'server-only';
 import { eq } from 'drizzle-orm';
 import { expenses as expensesTable, settlementLines as linesTable } from '../db/schema';
 import type { ScopedDb } from '../db/scope';
-import { balanceCents, refundableCents } from './compute';
-import { live } from './overview';
-import { ruleFor } from './dunning-run';
-import { currentPromise, outcomeOf, supersederOf } from './promise';
+import { balanceCents, refundableCents } from '../invoices/compute';
+import { live } from '../invoices/overview';
+import { ruleFor } from '../invoices/dunning-run';
+import { currentPromise, outcomeOf, supersederOf } from '../invoices/promise';
 import { payBasisFor, payForLoad } from '../settlements/compute';
 import {
   HORIZON_WEEKS,
   buildTimeline,
   groupStanding,
+  recurringMovements,
   splitPayable,
   splitReceivable,
   unknowns,
+  windowsFrom,
   type Movement,
   type Standing,
   type StandingGroup,
   type Timeline,
   type Unknown,
 } from './cashflow';
+import {
+  ageOf,
+  positionNow,
+  project,
+  type Aged,
+  type Movements,
+  type Projection,
+} from './balance';
+import {
+  latestBalance,
+  movementsSince,
+  outgoingsFor,
+  type BalanceView,
+  type OutgoingView,
+} from './treasury';
 
 /**
- * Assembling the timeline out of what is on file.
+ * Assembling the cash screens out of what is on file.
  *
  * One pass over the billing tables rather than a query per row, because the
  * page is read top to bottom in one go. Every judgement about what a figure
- * *means* lives in `cashflow.ts` and every judgement about whether somebody
- * kept their word lives in `promise.ts`; this file only fetches and hands
- * over, so the screen cannot disagree with the dunning sweep about the same
- * promise.
+ * *means* lives in `cashflow.ts`, `recurring.ts` and `balance.ts`; every
+ * judgement about whether somebody kept their word lives in `promise.ts`.
+ * This file only fetches and hands over, so the screen cannot disagree with
+ * the dunning sweep about the same promise.
  */
+
+export interface BalanceState {
+  reading: BalanceView;
+  age: Aged;
+  /** What this application knows has moved since the reading was taken. */
+  moved: Movements;
+  /** The reading plus that movement: where the account probably stands today. */
+  positionCents: number;
+}
 
 export interface CashflowReport {
   timeline: Timeline;
@@ -40,6 +66,11 @@ export interface CashflowReport {
   accruedPayCents: number;
   accruedLoadCount: number;
   horizonWeeks: number;
+  /** Null when nobody may see it, or when nobody has entered one. */
+  balance: BalanceState | null;
+  /** Null without a balance: there is nothing to run the weeks against. */
+  projection: Projection | null;
+  outgoings: OutgoingView[];
 }
 
 /**
@@ -85,11 +116,27 @@ async function accruedPay(scoped: ScopedDb): Promise<{ cents: number; loads: num
   return { cents, loads: count };
 }
 
+export interface ReportOptions {
+  now?: Date;
+  weeks?: number;
+  /**
+   * Whether this reader may see the bank balance.
+   *
+   * Passed in rather than decided here, and used to skip the query rather than
+   * to blank the result: what customers owe is dispatch information and what
+   * is in the account is not, so a dispatcher gets the timeline without the
+   * line it runs against.
+   */
+  withBalance?: boolean;
+}
+
 export async function cashflowReport(
   scoped: ScopedDb,
-  now = new Date(),
-  weeks = HORIZON_WEEKS,
+  options: ReportOptions = {},
 ): Promise<CashflowReport> {
+  const now = options.now ?? new Date();
+  const weeks = options.weeks ?? HORIZON_WEEKS;
+
   const [invoices, customers, payments, refunds, promises, settlements, drivers, rule, accrued] =
     await Promise.all([
       scoped.select('invoices'),
@@ -102,6 +149,8 @@ export async function cashflowReport(
       ruleFor(scoped),
       accruedPay(scoped),
     ]);
+
+  const outgoings = await outgoingsFor(scoped);
 
   const customerName = new Map(customers.map((customer) => [customer.id, customer.name]));
   const driverName = new Map(drivers.map((driver) => [driver.id, driver.displayName]));
@@ -213,6 +262,20 @@ export async function cashflowReport(
   }
 
   /*
+   * Standing costs, generated only as far as the horizon.
+   *
+   * Not beyond it, unlike everything else here. A monthly note has no last
+   * payment until somebody sets one, so a "beyond four weeks" figure for it
+   * would be a number chosen by how far the loop happened to run. The page
+   * says they carry on instead of pretending to total them.
+   */
+  const spans = windowsFrom(now, weeks);
+  const horizonEnd = spans[spans.length - 1]?.to ?? now;
+  for (const outgoing of outgoings) {
+    movements.push(...recurringMovements(outgoing, now, horizonEnd));
+  }
+
+  /*
    * Approved expenses nobody has been paid back for.
    *
    * Only the ones somebody has actually reviewed: an unreviewed receipt is a
@@ -244,16 +307,40 @@ export async function cashflowReport(
     });
   }
 
+  const timeline = buildTimeline(movements, now, weeks);
+
+  /* --- What it all runs against ---------------------------------------- */
+
+  let balance: BalanceState | null = null;
+
+  if (options.withBalance) {
+    const reading = await latestBalance(scoped);
+
+    if (reading) {
+      const moved = await movementsSince(scoped, reading, now);
+      balance = {
+        reading,
+        age: ageOf(reading, now),
+        moved,
+        positionCents: positionNow(reading, moved),
+      };
+    }
+  }
+
   return {
-    timeline: buildTimeline(movements, now, weeks),
+    timeline,
     standing: groupStanding(standing),
     unknowns: unknowns({
       accruedPayCents: accrued.cents,
       accruedLoadCount: accrued.loads,
-      hasBankBalance: false,
+      hasBalance: balance !== null,
+      recurringCount: outgoings.length,
     }),
     accruedPayCents: accrued.cents,
     accruedLoadCount: accrued.loads,
     horizonWeeks: weeks,
+    balance,
+    projection: balance ? project(balance.positionCents, timeline.windows) : null,
+    outgoings,
   };
 }

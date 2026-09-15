@@ -1,6 +1,14 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, CalendarRange, EyeOff } from 'lucide-react';
+import {
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowUpRight,
+  CalendarRange,
+  EyeOff,
+  Receipt,
+  TriangleAlert,
+} from 'lucide-react';
 import { requireSessionOrRedirect } from '@/lib/auth/guard';
 import { can } from '@/lib/auth/capabilities';
 import { EmptyState, PageBody, PageHeader } from '@/components/app/page-header';
@@ -9,7 +17,8 @@ import { Card } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils/cn';
 import { money } from '@/lib/utils/format';
-import { cashflowReport } from '@/lib/invoices/cashflow-report';
+import { CashBalance } from '@/components/app/cash-balance';
+import { cashflowReport } from '@/lib/cash/cashflow-report';
 import {
   STANDING_LABEL,
   STANDING_NOTE,
@@ -17,7 +26,8 @@ import {
   describeWait,
   describeWindow,
   netOf,
-} from '@/lib/invoices/cashflow';
+} from '@/lib/cash/cashflow';
+import type { Shortfall } from '@/lib/cash/balance';
 
 export const metadata = { title: 'Cash coming' };
 
@@ -54,13 +64,20 @@ export default async function TimelinePage() {
   const { session, db } = await requireSessionOrRedirect();
   if (!can(session.role, 'invoice.read')) redirect('/dashboard');
 
-  const report = await cashflowReport(db);
-  const { timeline } = report;
+  /*
+   * What is in the bank is not dispatch information, so it is fetched only for
+   * a reader entitled to it rather than fetched and then hidden. A dispatcher
+   * gets the movements without the line they run against.
+   */
+  const maySeeBalance = can(session.role, 'cash.read');
+  const report = await cashflowReport(db, { withBalance: maySeeBalance });
+  const { timeline, projection } = report;
   const anythingDated = timeline.windows.some(
     (window) => window.movements.length > 0,
   );
 
   const horizonTotal = netOf(timeline.totals);
+  const closing = new Map((projection?.windows ?? []).map((row) => [row.index, row]));
 
   return (
     <>
@@ -78,14 +95,55 @@ export default async function TimelinePage() {
             : 'Nothing on file carries a future date, so there is nothing to lay out yet.'
         }
         actions={
-          <Link href="/money" className={cn(buttonVariants({ variant: 'secondary' }))}>
-            <ArrowLeft aria-hidden />
-            Money
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            {maySeeBalance && (
+              <Link
+                href="/money/outgoings"
+                className={cn(buttonVariants({ variant: 'secondary' }))}
+              >
+                <Receipt aria-hidden />
+                Standing costs
+              </Link>
+            )}
+            <Link href="/money" className={cn(buttonVariants({ variant: 'secondary' }))}>
+              <ArrowLeft aria-hidden />
+              Money
+            </Link>
+          </div>
         }
       />
 
       <PageBody className="space-y-6">
+        {/* --- What it all runs against --------------------------------- */}
+
+        {maySeeBalance && (
+          <CashBalance
+            reading={report.balance?.reading ?? null}
+            age={report.balance?.age ?? null}
+            moved={report.balance?.moved ?? null}
+            positionCents={report.balance?.positionCents ?? null}
+            canEdit={can(session.role, 'cash.write')}
+          />
+        )}
+
+        {projection?.onEverything && (
+          <ShortfallNote
+            shortfall={projection.onEverything}
+            tone="danger"
+            title="Even if everything lands, the account goes under"
+            detail="Counting every promise and every invoice paid exactly on its terms. This is the week to do something about before it arrives, not during it."
+          />
+        )}
+
+        {projection?.onPromises && !projection.onEverything && (
+          <ShortfallNote
+            shortfall={projection.onPromises}
+            tone="warn"
+            title="On promises alone, the account goes under"
+            detail="Counting only what somebody has actually committed to. Ordinary in itself — few carriers have promises covering a month of costs — but it is the week that depends entirely on invoices nobody has promised to pay."
+          />
+        )}
+
         {/* --- The weeks ------------------------------------------------- */}
 
         {!anythingDated && (
@@ -101,6 +159,7 @@ export default async function TimelinePage() {
             timeline.windows.map((window) => {
             const net = netOf(window);
             const quiet = window.movements.length === 0;
+            const ends = closing.get(window.index);
 
             return (
               <Card key={window.index} className={cn('p-5', quiet && 'opacity-70')}>
@@ -112,7 +171,13 @@ export default async function TimelinePage() {
                     </span>
                   </h2>
 
-                  {!quiet && (
+                  {/*
+                    * The week's own movement, shown only when there is no
+                    * running balance to show instead. Where there is one, this
+                    * line is the same fact a step less useful, and a card
+                    * carrying both teaches a reader to skim past both.
+                    */}
+                  {!quiet && !ends && (
                     <p className="text-xs text-ink-secondary tabular-nums">
                       <span className={net.ifAllLands < 0 ? 'text-danger' : 'text-ok'}>
                         {signed(net.ifAllLands)}
@@ -132,7 +197,16 @@ export default async function TimelinePage() {
                 </div>
 
                 {quiet ? (
-                  <p className="mt-2 text-xs text-ink-muted">Nothing is dated for this week.</p>
+                  <p className="mt-2 text-xs text-ink-muted">
+                    Nothing is dated for this week.
+                    {ends && (
+                      <>
+                        {' '}
+                        The balance is unchanged at{' '}
+                        <span className="tabular-nums">{money(ends.ifAllLandsCents)}</span>.
+                      </>
+                    )}
+                  </p>
                 ) : (
                   <>
                     <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
@@ -155,12 +229,64 @@ export default async function TimelinePage() {
                         </dd>
                       </div>
                       <div>
+                        {/*
+                          * One figure, because one figure is what the account
+                          * sees leave. The split sits under it rather than in
+                          * a fourth column: a driver settlement can be drawn a
+                          * week later and a truck note cannot, so which is
+                          * which matters — but not enough to make somebody
+                          * read four columns on a phone.
+                          */}
                         <dt className="text-xs text-ink-muted">Going out</dt>
                         <dd className="mt-0.5 font-medium text-ink tabular-nums">
                           {money(window.outCents)}
                         </dd>
+                        {window.recurringCents > 0 && window.settlementCents > 0 && (
+                          <dd className="text-xs text-ink-muted tabular-nums">
+                            {money(window.recurringCents)} of it standing
+                          </dd>
+                        )}
                       </div>
                     </dl>
+
+                    {ends && (
+                      <p className="mt-3 border-t border-line pt-3 text-xs text-ink-secondary tabular-nums">
+                        Ends the week on{' '}
+                        <span
+                          className={
+                            ends.ifAllLandsCents < 0
+                              ? 'font-semibold text-danger'
+                              : 'font-semibold text-ink'
+                          }
+                        >
+                          {money(ends.ifAllLandsCents)}
+                        </span>{' '}
+                        <span className="text-ink-muted">if everything lands</span>
+                        {/*
+                          * Gated on the two figures differing, not on this
+                          * week carrying a due invoice. The balance is
+                          * cumulative: once any earlier week has counted an
+                          * invoice, the cautious line stays apart from the
+                          * hopeful one for the rest of the horizon — and
+                          * hiding it here left the shortfall warning above
+                          * pointing at a week whose card did not show the
+                          * figure it was quoting.
+                          */}
+                        {ends.ifOnlyPromisedCents !== ends.ifAllLandsCents && (
+                          <>
+                            {' · '}
+                            <span
+                              className={
+                                ends.ifOnlyPromisedCents < 0 ? 'text-warn' : 'text-ink'
+                              }
+                            >
+                              {money(ends.ifOnlyPromisedCents)}
+                            </span>{' '}
+                            <span className="text-ink-muted">on promises alone</span>
+                          </>
+                        )}
+                      </p>
+                    )}
 
                     <details open={window.index === 0} className="mt-4">
                       <summary className="cursor-pointer text-xs text-ink-muted hover:text-ink-secondary">
@@ -210,6 +336,13 @@ export default async function TimelinePage() {
             {money(timeline.later.dueCents)} falling due, {money(timeline.later.outCents)} going
             out. Counted here so nothing is dropped, not laid out, because a date that far ahead
             moves.
+            {report.outgoings.length > 0 && (
+              <>
+                {' '}
+                Standing costs are not in that figure: they carry on past the horizon, so any total
+                for them would be a number chosen by how far this page happened to look.
+              </>
+            )}
           </p>
         )}
 
@@ -312,5 +445,48 @@ export default async function TimelinePage() {
         </section>
       </PageBody>
     </>
+  );
+}
+
+/**
+ * The week the account runs out, named rather than left to be spotted.
+ *
+ * Two of these exist and they are not the same news. Going under on promises
+ * alone is ordinary; going under with every invoice paid exactly on its terms
+ * is not, and a screen that gave them the same weight would teach a reader to
+ * discount both. Only the worse one is shown when both are true.
+ */
+function ShortfallNote({
+  shortfall,
+  tone,
+  title,
+  detail,
+}: {
+  shortfall: Shortfall;
+  tone: 'danger' | 'warn';
+  title: string;
+  detail: string;
+}) {
+  return (
+    <Card
+      className={cn(
+        'flex flex-wrap items-start gap-3 p-5',
+        tone === 'danger' ? 'border-danger bg-danger-soft' : 'border-warn bg-warn-soft',
+      )}
+    >
+      <TriangleAlert
+        className={cn('mt-0.5 size-4 shrink-0', tone === 'danger' ? 'text-danger' : 'text-warn')}
+        aria-hidden
+      />
+      <div className="min-w-0">
+        <p className={cn('text-sm font-semibold', tone === 'danger' ? 'text-danger' : 'text-warn')}>
+          {title} in the week of {describeWindow(shortfall)}
+        </p>
+        <p className="mt-1 text-sm text-ink tabular-nums">
+          It reaches {money(shortfall.cents)} that week.
+        </p>
+        <p className="mt-1 max-w-prose text-xs leading-relaxed text-ink-secondary">{detail}</p>
+      </div>
+    </Card>
   );
 }

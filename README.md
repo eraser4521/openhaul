@@ -116,6 +116,7 @@ template does not reproduce the record that was actually agreed.
 | **A worklist** | Every promise arranged by what to do about it, with each customer's record beside it as counts rather than a score |
 | **The money** | Owed, promised, held and collected on one page, ending in the short list of what needs somebody today |
 | **Cash coming** | Promised, falling due and going out by week, with everything that has no date kept off the timeline and named |
+| **A running balance** | What the bank said and when, plus what leaves every month, so the weeks answer whether Friday works |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -599,12 +600,41 @@ on the timeline at all. It sits underneath instead, grouped by why it has no dat
 days overdue" and "due next Tuesday" are not the same kind of thing and a column that adds them
 produces a number meaning neither.
 
-The last section is what the page cannot see, written down rather than left to be discovered: that
-nothing here is connected to a bank, so this says what moves and not what you have; the driver pay
-already earned on delivered loads nobody has drawn a settlement for, given as a figure rather than
-as a category; and everything that lives nowhere in this application — truck payments, insurance,
-fuel cards, rent, tax. A forecast that does not say what it is missing gets believed about things it
-knows nothing about, which is worse than not having one.
+The last section is what the page cannot see, written down rather than left to be discovered: the
+driver pay already earned on delivered loads nobody has drawn a settlement for, given as a figure
+rather than as a category, and everything that lives nowhere in this application. Each line is
+claimed only while it is true — once a balance is entered the page stops saying it cannot see the
+account, because a caveat a screen has outgrown is how a reader learns to skip the section the real
+caveats are in.
+
+Two of those gaps close by being told. The first is the bank balance: nothing here connects to a
+bank, so somebody reads the figure off their banking app and types it in. That works, and it stops
+working quietly, which is the whole problem — so a balance is stored with the day it was true rather
+than as a number somebody overwrites, and it is always shown with its age. Current enough to plan
+on, old enough that things have moved, or too old to plan on. What the application recorded since it
+was taken is set out beside it as arithmetic rather than folded into one adjusted figure, with
+standing costs that fell due in the gap marked as expected rather than confirmed — a direct debit
+falling due is not proof it cleared. The total is labelled *probably*, because a fuel card and a
+card machine moved too and nothing here saw them.
+
+The second is what leaves whether or not a wheel turns: the truck note, the premium, the yard rent,
+the quarterly fuel tax. Each is recorded once with an amount, a cadence and the day of the first
+payment, and every occurrence after that is computed rather than stored — so changing an amount
+changes every future date at once and leaves no stale copies behind. One anchor date says both which
+weekday a fortnightly payment falls on and which of the two weeks, so there is no second setting to
+drift out of step with it. A commitment anchored on the 31st comes out on the 28th in February and
+returns to the 31st in March, which is what a lender's bank does. They are listed dearest first by
+what they cost in a year, which is not the same order as by what leaves each time: rent at $450 a
+week outruns an $1,850 truck note, and sorting on the payment would bury it four rows down.
+
+With both, the weeks stop being movements and become a running balance, carried on the same two
+readings the rest of the page uses — where the account ends each week if everything lands, and where
+it ends if only what somebody actually promised arrives. They are never averaged into one expected
+figure, because an average would sit between a number somebody committed to and a number nobody did
+and would be neither. The week the account first goes under is named at the top, and the two ways of
+going under are reported separately: on promises alone is ordinary, since few carriers have promises
+covering a month of costs, while going under with every invoice paid exactly on its terms is the
+week to do something about before it arrives.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

@@ -6,6 +6,7 @@ import {
   describeWindow,
   groupStanding,
   netOf,
+  recurringMovements,
   splitPayable,
   splitReceivable,
   unknowns,
@@ -13,7 +14,7 @@ import {
   type Movement,
   type Receivable,
   type Standing,
-} from '@/lib/invoices/cashflow';
+} from '@/lib/cash/cashflow';
 
 /**
  * What moves, and when.
@@ -264,6 +265,51 @@ describe('the timeline', () => {
     });
   });
 
+  it('adds standing costs to what goes out while still saying which is which', () => {
+    /*
+     * The account sees one figure leave, so the total has to include both. But
+     * a driver settlement and a truck note are answerable in completely
+     * different ways — one can be drawn a week later, the other cannot — so
+     * the split is kept beside the total rather than instead of it.
+     */
+    const timeline = buildTimeline(
+      [
+        movement({ key: 'c', kind: 'settlement', amountCents: 214_000 }),
+        movement({ key: 'd', kind: 'recurring', amountCents: 90_000 }),
+      ],
+      NOW,
+    );
+
+    expect(timeline.windows[0]).toMatchObject({
+      settlementCents: 214_000,
+      recurringCents: 90_000,
+      outCents: 304_000,
+    });
+    expect(timeline.totals.outCents).toBe(304_000);
+  });
+
+  it('turns a standing cost into one movement per payment', () => {
+    const rows = recurringMovements(
+      {
+        id: 'o1',
+        name: 'Freightliner note',
+        category: 'loan',
+        amountCents: 90_000,
+        cadence: 'weekly',
+        anchorOn: new Date('2026-09-16T00:00:00Z'),
+        endsOn: null,
+      },
+      NOW,
+      new Date('2026-10-13T00:00:00Z'),
+    );
+
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toMatchObject({ kind: 'recurring', amountCents: 90_000 });
+    // Keyed by the day as well as the commitment, or four payments from one
+    // note would collide into one row.
+    expect(new Set(rows.map((row) => row.key)).size).toBe(4);
+  });
+
   it('carries what is dated past the horizon rather than dropping it', () => {
     const timeline = buildTimeline(
       [movement({ on: new Date('2026-11-20T00:00:00Z'), amountCents: 90_000 })],
@@ -348,16 +394,66 @@ describe('grouping what is not on the timeline', () => {
  * ---------------------------------------------------------------------- */
 
 describe('the gaps', () => {
-  it('always says it does not know the bank balance', () => {
+  it('says it does not know the bank balance, until it does', () => {
     /*
-     * The important one. Without it this shows movement and not whether there
-     * will be enough, and a reader who does not know that will take a week
-     * that nets positive as a week they can cover.
+     * The important one. Without a balance this shows movement and not whether
+     * there will be enough, and a reader who does not know that will take a
+     * week that nets positive as a week they can cover.
+     *
+     * It has to stop once somebody enters one. A caveat the page has outgrown
+     * is how a reader learns to skip the section the real caveats are in.
      */
-    const rows = unknowns({ accruedPayCents: 0, accruedLoadCount: 0, hasBankBalance: false });
+    const without = unknowns({
+      accruedPayCents: 0,
+      accruedLoadCount: 0,
+      hasBalance: false,
+      recurringCount: 0,
+    });
 
-    expect(rows[0]?.what).toBe('What is actually in the account');
-    expect(rows[0]?.why).toContain('not what you have');
+    expect(without[0]?.what).toBe('What is actually in the account');
+    expect(without[0]?.why).toContain('not what you have');
+
+    const with_ = unknowns({
+      accruedPayCents: 0,
+      accruedLoadCount: 0,
+      hasBalance: true,
+      recurringCount: 0,
+    });
+
+    expect(with_.some((row) => row.what === 'What is actually in the account')).toBe(false);
+  });
+
+  it('names standing costs as the largest gap until some are recorded', () => {
+    const none = unknowns({
+      accruedPayCents: 0,
+      accruedLoadCount: 0,
+      hasBalance: true,
+      recurringCount: 0,
+    });
+
+    expect(none.some((row) => row.why.includes('largest thing missing'))).toBe(true);
+
+    // And stops saying so once they are, because by then it is not true.
+    const some = unknowns({
+      accruedPayCents: 0,
+      accruedLoadCount: 0,
+      hasBalance: true,
+      recurringCount: 3,
+    });
+
+    expect(some.some((row) => row.why.includes('largest thing missing'))).toBe(false);
+    expect(some.some((row) => row.why.includes('3 standing costs'))).toBe(true);
+  });
+
+  it('counts one standing cost as one', () => {
+    const rows = unknowns({
+      accruedPayCents: 0,
+      accruedLoadCount: 0,
+      hasBalance: true,
+      recurringCount: 1,
+    });
+
+    expect(rows.some((row) => row.why.includes('one standing cost'))).toBe(true);
   });
 
   it('gives accrued driver pay as a figure rather than as a category', () => {
@@ -366,7 +462,7 @@ describe('the gaps', () => {
     const rows = unknowns({
       accruedPayCents: 412_000,
       accruedLoadCount: 6,
-      hasBankBalance: false,
+      hasBalance: false, recurringCount: 0,
     });
 
     expect(rows.some((row) => row.why.includes('6 delivered loads'))).toBe(true);
@@ -376,20 +472,20 @@ describe('the gaps', () => {
     const rows = unknowns({
       accruedPayCents: 70_000,
       accruedLoadCount: 1,
-      hasBankBalance: false,
+      hasBalance: false, recurringCount: 0,
     });
 
     expect(rows.some((row) => row.why.includes('one delivered load'))).toBe(true);
   });
 
   it('says nothing about accrued pay when every delivered load is settled', () => {
-    const rows = unknowns({ accruedPayCents: 0, accruedLoadCount: 0, hasBankBalance: false });
+    const rows = unknowns({ accruedPayCents: 0, accruedLoadCount: 0, hasBalance: false, recurringCount: 0 });
 
     expect(rows.some((row) => row.what.includes('Driver pay'))).toBe(false);
   });
 
   it('always warns that a due date is not a commitment', () => {
-    const rows = unknowns({ accruedPayCents: 0, accruedLoadCount: 0, hasBankBalance: true });
+    const rows = unknowns({ accruedPayCents: 0, accruedLoadCount: 0, hasBalance: true, recurringCount: 0 });
 
     expect(rows.map((row) => row.what)).toContain('Whether a due date means a payment');
   });

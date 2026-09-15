@@ -41,13 +41,15 @@ on a patched version itself.
 
 ## Where help is most useful
 
-**An opening balance, and the bills that arrive every month.** The cash page now says what moves —
-promised, falling due, going out — and says plainly that it cannot say whether there will be enough,
-because nothing here knows what is in the account or what leaves it on a standing order. Neither gap
-needs a bank connection to close: a balance somebody types in on a Monday, and a short list of
-recurring outgoings with the day of the month each falls on, would turn "what moves" into "what is
-left". The hard part is staying honest once the typed balance goes stale, which it will by
-Wednesday — a figure that quietly ages into fiction is worse than no figure at all.
+**A warning that reaches somebody who is not looking at the screen.** The cash page can now name the
+week the account goes under, which is worth nothing to a carrier who is driving and will next open
+it on Friday. The machinery to send it already exists — the dunning sweep and the statement runs
+share a cron endpoint and a mail transport — so the work is not plumbing, it is deciding when a
+message is worth somebody's attention. A weekly digest gets filtered within a month. A message that
+arrives only when the projection actually goes under gets read, but is only worth reading if the
+projection is trustworthy, and it is only trustworthy if the balance is fresh — which is the thing
+the message would have to ask for. Getting that loop right, without it becoming a nag about data
+entry, is the whole problem.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.

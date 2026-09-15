@@ -42,6 +42,17 @@ export const CAPABILITIES = {
   // Destroying records the business may still need is a different act from
   // configuring how long they are kept, so it is a different capability.
   'retention.purge': ['owner'],
+  // The bank balance specifically, and the standing costs screen that sets up
+  // what runs against it. Narrower than `invoice.read` because a balance is
+  // the one figure that says whether the business is solvent this morning,
+  // which is not a dispatcher's to know — the cash timeline shows them the
+  // movements without the line those movements run against.
+  //
+  // It does not fence off the carrier's costs in general: a dispatcher who can
+  // already read every driver's settlement is not being protected from the
+  // yard rent, so standing costs still appear on the timeline as movements.
+  'cash.read': ['owner', 'accounting'],
+  'cash.write': ['owner', 'accounting'],
   'settings.write': ['owner'],
   'audit.read': ['owner'],
   'member.manage': ['owner'],

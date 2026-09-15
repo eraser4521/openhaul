@@ -67,6 +67,8 @@ export const TENANT_TABLES = {
   monitoringConsents: schema.monitoringConsents,
   piiVault: schema.piiVault,
   subjectKeys: schema.subjectKeys,
+  cashBalances: schema.cashBalances,
+  recurringOutgoings: schema.recurringOutgoings,
 } as const;
 
 /**

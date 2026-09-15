@@ -285,6 +285,10 @@ export const AUDIT = {
   insuranceRecorded: 'insurance.recorded',
   insuranceVerified: 'insurance.verified',
 
+  cashBalanceRecorded: 'cash.balance.recorded',
+  outgoingSaved: 'cash.outgoing.saved',
+  outgoingRemoved: 'cash.outgoing.removed',
+
   settingsChanged: 'settings.changed',
   templateChanged: 'document_template.changed',
 

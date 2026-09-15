@@ -1,5 +1,6 @@
 import { money } from '../utils/format';
 import { paymentDueBy } from '../settlements/compute';
+import { CADENCE_LABEL, occurrencesBetween, type Outgoing } from './recurring';
 
 /**
  * What moves, and when.
@@ -54,7 +55,7 @@ function daysApart(from: Date, to: Date): number {
  * ---------------------------------------------------------------------- */
 
 /** Where a dated figure came from, which decides the column it sits in. */
-export type MovementKind = 'promised' | 'due' | 'settlement';
+export type MovementKind = 'promised' | 'due' | 'settlement' | 'recurring';
 
 export interface Movement {
   key: string;
@@ -76,22 +77,35 @@ export interface Movement {
   because: string;
 }
 
-export interface Window {
+export interface Outflow {
+  /** Driver settlements reaching their statutory payment deadline. */
+  settlementCents: number;
+  /** Standing commitments: notes, premiums, rent, tax. */
+  recurringCents: number;
+  /** The two together, which is what the account actually sees leave. */
+  outCents: number;
+}
+
+export interface Window extends Outflow {
   index: number;
   from: Date;
   /** Exclusive. */
   to: Date;
   promisedCents: number;
   dueCents: number;
-  outCents: number;
   movements: Movement[];
+}
+
+export interface Totals extends Outflow {
+  promisedCents: number;
+  dueCents: number;
 }
 
 export interface Timeline {
   windows: Window[];
   /** Dated past the horizon. Carried so nothing is silently dropped. */
-  later: { promisedCents: number; dueCents: number; outCents: number };
-  totals: { promisedCents: number; dueCents: number; outCents: number };
+  later: Totals;
+  totals: Totals;
 }
 
 /**
@@ -138,13 +152,18 @@ export function buildTimeline(
     const sum = (kind: MovementKind) =>
       inside.filter((row) => row.kind === kind).reduce((total, row) => total + row.amountCents, 0);
 
+    const settlementCents = sum('settlement');
+    const recurringCents = sum('recurring');
+
     return {
       index,
       from: span.from,
       to: span.to,
       promisedCents: sum('promised'),
       dueCents: sum('due'),
-      outCents: sum('settlement'),
+      settlementCents,
+      recurringCents,
+      outCents: settlementCents + recurringCents,
       movements: inside,
     };
   });
@@ -154,19 +173,53 @@ export function buildTimeline(
       .filter((row) => row.kind === kind && row.on.getTime() >= horizonEnd.getTime())
       .reduce((total, row) => total + row.amountCents, 0);
 
+  const laterSettlement = beyond('settlement');
+  const laterRecurring = beyond('recurring');
+  const add = (pick: (w: Window) => number) => windows.reduce((total, w) => total + pick(w), 0);
+
   return {
     windows,
     later: {
       promisedCents: beyond('promised'),
       dueCents: beyond('due'),
-      outCents: beyond('settlement'),
+      settlementCents: laterSettlement,
+      recurringCents: laterRecurring,
+      outCents: laterSettlement + laterRecurring,
     },
     totals: {
-      promisedCents: windows.reduce((t, w) => t + w.promisedCents, 0),
-      dueCents: windows.reduce((t, w) => t + w.dueCents, 0),
-      outCents: windows.reduce((t, w) => t + w.outCents, 0),
+      promisedCents: add((w) => w.promisedCents),
+      dueCents: add((w) => w.dueCents),
+      settlementCents: add((w) => w.settlementCents),
+      recurringCents: add((w) => w.recurringCents),
+      outCents: add((w) => w.outCents),
     },
   };
+}
+
+/**
+ * A standing commitment, as the payments it makes inside the horizon.
+ *
+ * The only figures on this page the carrier wrote down themselves rather than
+ * a counterparty. That makes them the most certain thing here and the easiest
+ * to forget to record, which is why the page counts how many there are and
+ * says so when the answer is none.
+ */
+export function recurringMovements(outgoing: Outgoing, from: Date, to: Date): Movement[] {
+  /*
+   * Named by the commitment, with the cadence as its detail — which is what
+   * explains why the same name appears in four consecutive weeks. Labelling
+   * the row "Standing cost" and relegating the name would have made every one
+   * of them look alike in a list read at a glance.
+   */
+  return occurrencesBetween(outgoing, from, to).map((on) => ({
+    key: `outgoing:${outgoing.id}:${on.getTime()}`,
+    kind: 'recurring' as const,
+    on,
+    amountCents: outgoing.amountCents,
+    reference: CADENCE_LABEL[outgoing.cadence].toLowerCase(),
+    counterparty: outgoing.name,
+    because: 'a standing cost you recorded',
+  }));
 }
 
 /**
@@ -481,16 +534,24 @@ export interface Unknown {
 export function unknowns(input: {
   accruedPayCents: number;
   accruedLoadCount: number;
-  hasBankBalance: boolean;
+  hasBalance: boolean;
+  recurringCount: number;
 }): Unknown[] {
   const rows: Unknown[] = [];
 
-  if (!input.hasBankBalance) {
+  /*
+   * Only claimed while it is true. Once somebody has entered a balance the
+   * weeks run against it, and a page still saying it cannot see the account
+   * would be reciting a caveat it has outgrown — which is how a reader learns
+   * to skip this section.
+   */
+  if (!input.hasBalance) {
     rows.push({
       what: 'What is actually in the account',
       why:
-        'Nothing here is connected to a bank. This says what moves, not what you have, so a ' +
-        'week that nets positive can still be a week you cannot cover.',
+        'Nothing here is connected to a bank, and nobody has entered a balance. This says what ' +
+        'moves, not what you have, so a week that nets positive can still be a week you cannot ' +
+        'cover. Enter one and these weeks become a running balance.',
     });
   }
 
@@ -508,13 +569,23 @@ export function unknowns(input: {
     });
   }
 
-  rows.push({
-    what: 'Everything not recorded in this application',
-    why:
-      'Truck and trailer payments, insurance premiums, fuel cards, rent, tax, payroll for ' +
-      'anybody who is not settled here. None of it is held anywhere in this system, so none of ' +
-      'it is in these figures.',
-  });
+  rows.push(
+    input.recurringCount === 0
+      ? {
+          what: 'Everything that leaves whether or not a wheel turns',
+          why:
+            'Truck and trailer payments, insurance premiums, yard rent, permits, tax. None of ' +
+            'it is recorded here, so none of it is in these figures — which is the single ' +
+            'largest thing missing from them. Recording a standing cost puts it on the timeline.',
+        }
+      : {
+          what: 'Standing costs you have not recorded',
+          why:
+            `The ${input.recurringCount === 1 ? 'one standing cost' : `${input.recurringCount} standing costs`} on file ` +
+            'are counted in the weeks above. Anything else that leaves on its own — a fuel card, ' +
+            'a card machine, cash, a premium nobody has entered — is not.',
+        },
+  );
 
   rows.push({
     what: 'Whether a due date means a payment',
