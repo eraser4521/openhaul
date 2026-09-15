@@ -114,6 +114,7 @@ template does not reproduce the record that was actually agreed.
 | **Chasing** | An escalating ladder that refuses to chase a disputed invoice, a customer who is paying, or one whose money you are holding |
 | **Promises** | "The cheque goes out Friday" recorded with a date and an amount, which stops the chasing and resolves itself when the money lands |
 | **A worklist** | Every promise arranged by what to do about it, with each customer's record beside it as counts rather than a score |
+| **The money** | Owed, promised, held and collected on one page, ending in the short list of what needs somebody today |
 | **Carrier vetting** | Authority, out-of-service status and — for brokers — the surety bond, checked against FMCSA's census and kept as a dated record |
 | **Insurance** | Certificates with expiry alerts, and a check of what is on the deck against the cargo limit. Cargo cover for general freight is **not** filed with FMCSA, so the certificate is the only evidence |
 | **Expenses** | Fuel, tolls and scales recorded from the cab with the receipt, approved by the carrier, and swept into the next settlement |
@@ -558,6 +559,23 @@ same fact dressed as a measurement and a star rating on a base of two promises i
 still change how somebody is spoken to. Withdrawn promises are left out of the count entirely,
 because ringing to say the payment cannot be made is the honest thing to do and scoring somebody
 down for candour teaches them not to ring.
+
+All of that is answered on its own screen, and none of those screens can see the others. The money
+page puts four figures side by side — owed, promised, held for customers, billed and collected this
+week — and then the short list of what needs somebody today. Four figures rather than twelve, and
+no controls: a page read for ten seconds before the telephone starts cannot open by asking for a
+date range.
+
+What it can see that nothing else can is a customer who owes money while the carrier is holding
+money of theirs. The invoice screen knows the balance, the customer screen knows the credit, and
+neither is in a position to notice both at once — so an invoice gets chased, a statement goes out
+and a reminder is posted, all to somebody whose money is already in the account. It is named on the
+page with what applying it would settle.
+
+What needs you is a list of things that are true today rather than a row of counters reading zero,
+because zeroes teach a reader to stop looking. It leaves out every reason an invoice is *rightly*
+not being chased — disputed, paused, covered by credit — since those are decisions somebody already
+made, and a list that reopens them is a list that gets ignored along with the rows that matter.
 
 Insurance is where the authority lookup runs out. Cargo cover for general freight is not filed with
 FMCSA, so nothing public says whether the policy that pays for a scratched Porsche exists — the

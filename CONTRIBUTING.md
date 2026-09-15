@@ -41,11 +41,11 @@ on a patched version itself.
 
 ## Where help is most useful
 
-**Somewhere to see the money as a whole.** Receivables, promises, credit held for customers and
-what chasing is doing are each answered well on their own screen and nowhere together. The
-dashboard is about loads. What a carrier wants on a Monday morning is one page: owed, promised,
-held, overdue, and which of those moved last week. Assembling it is easy; deciding what belongs on
-it without turning it into a wall of numbers nobody reads is the work.
+**Cash coming, not just cash owed.** The money page says what is outstanding and what was promised.
+Neither answers the question a carrier actually loses sleep over: whether there will be enough in
+the account on Friday to make settlements and fuel. That needs what is going *out* — driver pay
+due, expenses awaiting reimbursement, what has been promised to whom — set against what is coming
+in, on a timeline rather than as a total. Easy to build badly as a forecast nobody believes.
 
 **Correctness in the domain.** If a damage code, a retention period or a workflow assumption is
 wrong, say so — ideally with the citation. Being wrong about 49 CFR is worse than being ugly.
