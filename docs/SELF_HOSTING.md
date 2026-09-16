@@ -104,13 +104,13 @@ the encryption worth having.
 | `PASSWORD_PEPPER` | recommended | Held outside the database |
 | `SMTP_HOST`, `SMTP_FROM` | to send documents | Without both, sending is off and the app says so |
 | `SMTP_PORT` | no | Defaults to 587. TLS is implied on 465 |
-| `SMTP_USER`, `SMTP_PASSWORD` | if your server needs them | Omit for an unauthenticated relay |
+| `SMTP_USER`, `SMTP_PASSWORD` | if your server needs them | Omit for an unauthenticated relay. Gmail needs an App Password — see below |
 | `SMTP_SECURE` | rarely | Derived from the port; set only to override |
 | `SMTP_REPLY_TO` | no | Where replies should land, if not the from address |
 | `IMAP_HOST` | to read bounces | Without it, a send that failed downstream keeps reading as accepted |
 | `IMAP_PORT`, `IMAP_MAILBOX` | no | Default to 993 and INBOX |
 | `IMAP_USER`, `IMAP_PASSWORD` | no | Fall back to the SMTP credentials |
-| `SMTP_BOUNCE_ADDRESS` | recommended | A plus-addressable mailbox, so bounces can be traced to a send |
+| `SMTP_BOUNCE_ADDRESS` | recommended | A plus-addressable mailbox, so bounces can be traced to a send. Leave unset on Gmail |
 | `BOUNCE_CHECK_TOKEN` | for unattended checks | Enables `POST /api/bounces/check`; the endpoint is off without it |
 | `STATEMENT_RUN_TOKEN` | for scheduled statements | Enables `POST /api/statements/run`; the endpoint is off without it |
 | `DUNNING_RUN_TOKEN` | for chasing overdue invoices | Enables `POST /api/dunning/run`; the endpoint is off without it |
@@ -272,6 +272,57 @@ decision declines to repeat unchanged news — so a cron line firing hourly
 sends no more than one firing daily, and a retry after a timeout costs
 nothing. The Settings screen shows exactly what would be sent if the sweep ran
 now, which most of the time is nothing.
+
+---
+
+## Sending through Gmail
+
+Gmail is the quickest mailbox to start with and carries one real limitation
+worth knowing before you choose it.
+
+```bash
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_USER="you@gmail.com"
+SMTP_PASSWORD="abcdefghijklmnop"          # App Password, spaces removed
+SMTP_FROM="Your Carrier <you@gmail.com>"
+```
+
+**It will not take your account password.** Gmail wants an App Password, which
+needs 2-Step Verification switched on first. Generate one at
+<https://myaccount.google.com/apppasswords>; it is shown as four groups of four
+letters and the spaces are display only — paste the sixteen characters
+together. An App Password can be revoked from that page without changing your
+Google password, which is the point of it.
+
+**`SMTP_FROM` has to be the account you authenticate as.** Gmail rewrites the
+From header to the authenticated user, so anything else is silently replaced
+and your customers see the wrong sender. An address you have verified under
+*Settings → Accounts → Send mail as* works too. A display name in front of it
+is fine and is what recipients actually see.
+
+Port 587 gets STARTTLS, which this application derives from the port rather
+than asking you to set — 465 for implicit TLS also works.
+
+**Bounce tracing does not work through Gmail, so leave `SMTP_BOUNCE_ADDRESS`
+unset.** Returned mail is matched to the send that caused it by encoding a
+token into the envelope sender, and Gmail overwrites the envelope sender with
+the authenticated account. The token never survives the round trip, so every
+bounce comes back indistinguishable. Setting the variable would have the
+Documents screen claim a traceability it does not have, which is worse than
+not having it. Reading bounces still works — they land in the inbox like any
+other mail — so `IMAP_HOST="imap.gmail.com"` with the same App Password lets
+the bounce sweep see them, once IMAP is enabled in Gmail's own settings.
+
+**Watch the sending limits.** A free Gmail account will send to roughly 500
+recipients a day and a Workspace account 2,000, counted per recipient rather
+than per message. A statement run across a few hundred customers is a normal
+month for a carrier and an unusual day for Gmail, which responds by locking
+sending for 24 hours. If you outgrow it, any SMTP provider works — nothing in
+this application is specific to one.
+
+**Test it from Settings.** *Test the connection* authenticates without sending
+anything. `Invalid login` there means the App Password, not the address.
 
 ---
 
