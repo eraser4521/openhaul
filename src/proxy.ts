@@ -13,8 +13,15 @@ import { NextResponse, type NextRequest } from 'next/server';
  * Keyword sources are still honoured, which is why `'wasm-unsafe-eval'`
  * continues to work for the ZXing barcode decoder.
  *
- * Cost: nonces force dynamic rendering, so static optimisation and PPR are off.
- * For a per-user load board and inspection app that is no loss.
+ * Cost: every route must render per request, so static optimisation and PPR
+ * are off. For a per-user load board and inspection app that is no loss.
+ *
+ * That cost is not paid automatically. This comment used to claim nonces
+ * "force dynamic rendering", and they do not: Next happily prerendered `/`,
+ * `/login` and `/register`, baking HTML with no nonce on any script, which
+ * this policy then blocked in full. It is `export const dynamic` in
+ * `src/app/layout.tsx` that actually holds the two halves together — do not
+ * remove it without removing the nonce here too.
  */
 export function proxy(request: NextRequest) {
   const isDev = process.env.NODE_ENV === 'development';

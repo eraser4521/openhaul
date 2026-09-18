@@ -45,7 +45,18 @@ COPY --from=build --chown=openhaul:openhaul /app /app
 # Database, generated documents and inspection photos all live here — the blob
 # store defaults to data/uploads — so one volume covers everything that must
 # survive a redeploy.
-RUN mkdir -p /app/data && chown -R openhaul:openhaul /app/data
+#
+# Emptied first, not just created. `next build` imports the route modules, and
+# importing src/lib/db/client.ts opens a connection, so the build stage leaves
+# an empty data/openhaul.db behind at the default path. .dockerignore keeps the
+# real database out of the context; this is the build making its own.
+#
+# It matters because Docker seeds an empty named volume from whatever the image
+# has at the mount point, so that stub would be copied into a fresh deployment's
+# volume. SQLite treats a zero-byte file as an empty database and migrates it
+# happily, so nothing breaks today — but an image that ships a database file at
+# all is one build step away from shipping a populated one.
+RUN rm -rf /app/data && mkdir -p /app/data && chown -R openhaul:openhaul /app/data
 VOLUME ["/app/data"]
 
 USER openhaul
