@@ -45,17 +45,17 @@
     "drizzle-orm": "0.45.2",
     "exif-reader": "^2.0.3",
     "geist": "^1.7.2",
-    "imapflow": "^2.0.2",
+    "imapflow": "^2.0.5",
     "jose": "^6.2.12",
-    "lucide-react": "^1.45.0",
-    "motion": "^13.2.0",
+    "lucide-react": "^1.47.0",
+    "motion": "^13.4.0",
     "next": "^16.3.5",
     "next-themes": "^0.4.6",
-    "nodemailer": "^10.0.9",
+    "nodemailer": "^10.0.10",
     "otpauth": "^9.5.2",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4",
-    "rate-limiter-flexible": "^11.2.0",
+    "rate-limiter-flexible": "^11.2.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "recharts": "^3.10.1",
@@ -63,14 +63,14 @@
     "sharp": "^0.35.4",
     "tailwind-merge": "^3.7.0",
     "uuidv7": "^1.2.1",
-    "zod": "^4.6.4",
+    "zod": "^4.6.5",
     "zxing-wasm": "^3.1.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^26.5.1",
-    "@types/nodemailer": "^8.0.1",
+    "@types/node": "^26.6.1",
+    "@types/nodemailer": "^8.0.2",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -81,6 +81,6 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   }
 }
